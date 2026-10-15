@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const bcryptjs = require("bcryptjs");
 const GymOwner = require("../models/gymOwner");
+const { sendOtpEmail } = require("../services/emailService");
 
 const signToken = (user) =>
   jwt.sign(
@@ -178,11 +179,9 @@ exports.gymOwnerResetPassword = async (req, res) => {
     const { newPassword, confirmPassword } = req.body;
 
     if (!newPassword || !confirmPassword) {
-      return res
-        .status(400)
-        .json({
-          message: "Both new password and confirm password are required",
-        });
+      return res.status(400).json({
+        message: "Both new password and confirm password are required",
+      });
     }
 
     if (newPassword !== confirmPassword) {
@@ -206,4 +205,18 @@ exports.gymOwnerResetPassword = async (req, res) => {
   } catch (error) {
     next(error);
   }
+};
+
+exports.logout = async (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "Logout successful",
+  });
 };
