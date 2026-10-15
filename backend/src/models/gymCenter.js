@@ -10,6 +10,8 @@ const gymCenterSchema = new mongoose.Schema(
     gym_Id: {
       type: String,
       required: true,
+      unique: true,
+      immutable: true,
     },
     gymName: {
       type: String,
@@ -70,7 +72,6 @@ const gymCenterSchema = new mongoose.Schema(
       },
       required: [true, "Business registration type is required"],
     },
-
     cacRegistrationNumber: {
       type: String,
       trim: true,

@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const gymBranchSchema = new mongoose.Schema(
   {
@@ -24,7 +24,6 @@ const gymBranchSchema = new mongoose.Schema(
     email: {
       type: String,
       trim: true,
-      lowercase: true,
     },
 
     phone: {
@@ -40,7 +39,7 @@ const gymBranchSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["active", "inactive", "suspended"],
+      enum: ["active", "suspended"],
       default: "active",
     },
   },
@@ -51,4 +50,4 @@ const gymBranchSchema = new mongoose.Schema(
 
 gymBranchSchema.index({ gymCenter_id: 1, branchCode: 1 }, { unique: true });
 
-export default mongoose.model("GymBranch", gymBranchSchema);
+module.exports = mongoose.model("GymBranch", gymBranchSchema);

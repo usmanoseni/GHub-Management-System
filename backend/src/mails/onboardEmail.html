@@ -22,57 +22,115 @@
 
         <!-- Main email container -->
         <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0"
-          style="width:100%;max-width:640px;background-color:#ffffff;border-radius:10px;overflow:hidden;">
+          style="width:100%;max-width:960px;background-color:#ffffff;border-radius:15px;overflow:hidden;">
+    
+			<!-- Blended Hero Section -->
+			<tr style="height: 30rem;">
+			<td
+				background="cid:gym_image"
+				bgcolor="#082b3c"
+				style="
+				background-color: #082b3c;
+				background-image:
+					linear-gradient(
+					90deg,
+					#082b3c 0%,
+					rgba(8, 43, 60, 0.96) 32%,
+					rgba(8, 43, 60, 0.35) 70%,
+					rgba(8, 43, 60, 0.12) 100%
+					),
+					url('cid:gym_image');
+				background-position: center;
+				background-size: cover;
+				background-repeat: no-repeat;
+				padding: 30px;
+				"
+			>
 
-          <!-- Header -->
-          <tr>
-            <td style="background-color:#102536;padding:24px 30px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="left" valign="middle">
-                    <div style="font-size:30px;font-weight:800;letter-spacing:-1px;color:#ffffff;">
-                      <span style="color:#10b981;">G</span>Hub
-                    </div>
-                    <div style="font-size:12px;color:#cbd5e1;margin-top:3px;">
-                      Gym Management System
-                    </div>
-                  </td>
-                  <td align="right" valign="middle" style="font-size:12px;line-height:20px;color:#cbd5e1;">
+				<table
+				role="presentation"
+				width="100%"
+				cellpadding="0"
+				cellspacing="0"
+				border="0"
+				>
+				<!-- Brand -->
+				<tr style="height: 2rem;">
+					<img src="cid:ghub_logo" alt="GHub Logo" style="width: 50px; height: 50px; margin-bottom: 10px;" />
+					<td style="padding-bottom: 100px; display: flex; flex-direction: column; justify-content: center; align-items: start; flex-wrap: wrap;">
+					<div style="
+						font-family: Arial, sans-serif;
+						font-size: 30px;
+						font-weight: 800;
+						color: #ffffff;
+					">
+					
+						<span style="color: #10b981;">G</span>Hub
+					</div>
+
+					<div style="
+						font-size: 12px;
+						color: #dbeafe;
+						margin-top: 4px;
+					">
+						Gym Management System
+					</div>
+					</td>
+
+					 <td align="right" valign="middle" style="font-size:14px;line-height:18px; height:2rem; padding-bottom: 100px; color:#cbd5e1; border-left: 3px solid #10b981;">
                     Better Gyms.<br />
                     Stronger Communities.
                   </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+				</tr>
 
-          <!-- Hero section -->
-          <tr>
-            <td style="background-color:#102536;">
-              <!-- Replace the image URL with your hosted gym banner -->
-              <img
-                src="https://placehold.co/1280x560/102536/10b981?text=Welcome+to+GHub"
-                alt="Welcome to GHub Gym Management System"
-                width="640"
-                style="display:block;width:100%;max-width:640px;height:auto;border:0;"
-              />
-            </td>
-          </tr>
+				<!-- Welcome message -->
+				<tr>
+					<td style="padding-bottom: 30px;">
+					<p style="
+						margin: 0 0 12px;
+						color: #10d6a0;
+						font-size: 14px;
+						font-weight: bold;
+						letter-spacing: 2px;
+					">
+						WELCOME TO GHUB
+					</p>
 
-          <tr>
-            <td style="background-color:#102536;padding:0 30px 32px;">
-              <p style="margin:0 0 12px;color:#34d399;font-size:13px;font-weight:bold;letter-spacing:1.5px;">
-                WELCOME TO GHUB
-              </p>
-              <h1 style="margin:0 0 16px;color:#ffffff;font-size:34px;line-height:1.2;">
-                You're All Set!
-              </h1>
-              <p style="margin:0;color:#d7e2ec;font-size:16px;line-height:26px;">
-                Your gym account has been successfully created. We're excited to have you on board and help you manage your gym more efficiently.
-              </p>
-              <div style="width:48px;height:4px;background-color:#10b981;margin-top:24px;"></div>
-            </td>
-          </tr>
+					<h1 style="
+						margin: 0 0 18px;
+						color: #ffffff;
+						font-size: 48px;
+						font-weight: bold;
+						line-height: 1.2;
+					">
+						You're <span style="color: #10d6a0;">All Set!</span>
+					</h1>
+
+					<p style="
+						max-width: 350px;
+						margin: 0;
+						color: #edf6fb;
+						font-size: 16px;
+						line-height: 26px;
+					">
+						Your gym account has been successfully created.
+						We're excited to have you on board and help you
+						manage your gym more efficiently.
+					</p>
+
+					<div style="
+						width: 65px;
+						height: 5px;
+						margin-top: 25px;
+						background-color: #10d6a0;
+						border-radius: 5px;
+					"></div>
+					</td>
+				</tr>
+				</table>
+
+			</td>
+			</tr>
 
           <!-- Welcome message -->
           <tr>
@@ -170,38 +228,40 @@
                 </tr>
               </table>
               <p style="margin:14px 0 0;font-size:13px;line-height:21px;color:#52657a;">
-                Use your credentials below to access your account.
+                Use your email credentials below and password to access your account.
               </p>
             </td>
           </tr>
 
           <!-- Account credentials -->
           <tr>
-            <td style="padding:0 24px 28px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#effaf6;border-radius:8px;">
+            <td style="padding:0 24px 28px; ">
+              <table role="presentation" width="100%"  cellpadding="0" cellspacing="0" border="0" style="background-color:#effaf6;border-radius:8px;">
                 <tr>
-                  <td style="padding:22px;">
-                    <h3 style="margin:0 0 18px;font-size:18px;color:#102536;">
-                      Your Account Details
-                    </h3>
+                  <td style="padding:22px; height:100%; display: flex; justify-content: start; align-items: start; flex-wrap: wrap;">
+					<div style="display: flex;  height: 100%; flex-direction: column; justify-content: start; align-items: start; flex-wrap: wrap; width: 70%;">
+						<h3 style="margin:0 0 18px;font-size:18px;color:#102536;">
+						Your Account Details
+						</h3>
 
-                    <p style="margin:0 0 6px;font-size:12px;color:#52657a;">
-                      Email Address
-                    </p>
-                    <p style="margin:0 0 18px;font-size:14px;font-weight:bold;color:#102536;word-break:break-word;">
-                      {{BusinessEmail}}
-                    </p>
+						<p style="margin:0 0 6px;font-size:12px;color:#52657a;">
+						Email Address
+						</p>
+						<p style="margin:0 0 18px;font-size:14px;font-weight:bold;color:#102536;word-break:break-word;">
+						{{BusinessEmail}}
+						</p>
 
-                    <p style="margin:0 0 6px;font-size:12px;color:#52657a;">
-                      Gym Name
-                    </p>
-                    <p style="margin:0;font-size:14px;font-weight:bold;color:#102536;word-break:break-word;">
-                      {{GymName}}
-                    </p>
+						<p style="margin:0 0 6px;font-size:12px;color:#52657a;">
+						Gym Name
+						</p>
+						<p style="margin:0;font-size:14px;font-weight:bold;color:#102536;word-break:break-word;">
+						{{GymName}}
+						</p>
+					</div>
 
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px;background-color:#d9f5e9;border-radius:6px;">
+                    <table role="presentation" width="30%" height="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#d9f5e9;border-radius:6px; height: 8rem; ">
                       <tr>
-                        <td style="padding:14px;">
+                        <td style="padding:10px; ">
                           <p style="margin:0 0 7px;font-size:13px;font-weight:bold;color:#047857;">
                             &#128737; For Your Security
                           </p>
@@ -251,9 +311,11 @@
           <!-- Footer -->
           <tr>
             <td align="center" style="background-color:#102536;padding:26px 24px;">
-              <p style="margin:0 0 8px;font-size:21px;font-weight:bold;color:#ffffff;">
+              <p style="margin:0 0 8px;font-size:20px;font-weight:bold;color:#ffffff;">
+                <span><img src="cid:ghub_logo" alt="GHub Logo" style="width: 30px; height: 30px; " /></span>
                 <span style="color:#10b981;">G</span>Hub
               </p>
+
               <p style="margin:0 0 18px;font-size:12px;color:#cbd5e1;">
                 Fitness Management Made Simple.
               </p>

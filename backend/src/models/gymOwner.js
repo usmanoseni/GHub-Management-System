@@ -55,12 +55,12 @@ const gymOwnerSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    OtpExpiresAt: {
+    otpExpiresAt: {
       type: Date,
       select: false,
     },
 
-    OtpCode: {
+    otpCode: {
       type: String,
       default: "",
       select: false,
