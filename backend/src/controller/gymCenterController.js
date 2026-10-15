@@ -64,9 +64,7 @@ exports.createGymCenter = asyncHandler(async (req, res) => {
       ? cacRegistrationNumber.trim()
       : "";
   const registrationDocumentKey =
-    typeof registrationDocument === "string"
-      ? registrationDocument.trim()
-      : "";
+    typeof registrationDocument === "string" ? registrationDocument.trim() : "";
 
   if (
     businessRegistrationType === "registered" &&
@@ -128,3 +126,34 @@ exports.createGymCenter = asyncHandler(async (req, res) => {
     data: gymCenter,
   });
 });
+
+// Get gym centers by owner ID
+exports.getGymCentersByOwnerId = async (req, res, next) => {
+  try {
+    const { ownerId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(ownerId)) {
+      return res.status(400).json({
+        message: "Invalid gym owner ID",
+      });
+    }
+
+    const gymCenters = await GymCenter.find({
+      gymOwner_id: ownerId,
+    });
+
+    if (!gymCenters.length) {
+      return res.status(404).json({
+        message: "No gym centers found for this owner",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Gym centers retrieved successfully",
+      count: gymCenters.length,
+      gymCenters,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

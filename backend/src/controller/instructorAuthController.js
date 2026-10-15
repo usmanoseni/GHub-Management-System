@@ -10,10 +10,21 @@ const signToken = (user) =>
     process.env.JWT_SECRET,
     { expiresIn: "1d" },
   );
+const signPasswordResetToken = (user) =>
+  jwt.sign(
+    {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      purpose: "password_reset",
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "10m" },
+  );
 
 const hashOtp = (otp) => crypto.createHash("sha256").update(otp).digest("hex");
 
-exports.instructorLogin = async (req, res) => {
+exports.instructorLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
@@ -22,9 +33,11 @@ exports.instructorLogin = async (req, res) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
-    const instructor = await Instructors.findOne({ email: email });
+    const instructor = await Instructors.findOne({
+      email: email.trim().toLowerCase(),
+    });
 
-    if (!instructor) {
+    if (!instructor || instructor.accountStatus !== "active") {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
@@ -43,12 +56,12 @@ exports.instructorLogin = async (req, res) => {
       token: signToken(instructor),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 //instructor forgot password
-exports.instructorforgotPassword = async (req, res) => {
+exports.instructorforgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
@@ -56,36 +69,41 @@ exports.instructorforgotPassword = async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    const instructor = await Instructors.findOne({ email });
+    const instructor = await Instructors.findOne({
+      email: email.trim().toLowerCase(),
+    }).select("+OtpCode +OtpExpiresAt");
 
     if (!instructor) {
       return res.status(404).json({ message: "instructor not found" });
     }
 
     // Generate a 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const hashedOtp = hashOtp(otp);
 
     // Set OTP and expiration time (10 minutes)
-    instructor.otpCode = hashedOtp;
-    instructor.otpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    instructor.OtpCode = hashedOtp;
+    instructor.OtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await instructor.save();
 
     // Send OTP email to the instructor
     await sendOtpEmail({
       email: instructor.email,
       otp,
-      userName: `${instructor.firstname} ${instructor.lastname}`,
+      userName: `${instructor.firstName} ${instructor.lastname}`,
     });
 
-    //save the instructor with the OTP and expiration time
-    await instructor.save();
+    return res.status(200).json({
+      success: true,
+      message: "Password reset code sent",
+    });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 // validate OTP for instructor
-exports.validateOtp = async (req, res) => {
+exports.validateOtp = async (req, res, next) => {
   try {
     const { otp } = req.body;
 
@@ -95,41 +113,51 @@ exports.validateOtp = async (req, res) => {
     const hashedOtp = hashOtp(otp);
 
     const instructor = await Instructors.findOne({
-      otpCode: hashedOtp,
-      otpExpiresAt: { $gt: Date.now() },
-    });
+      OtpCode: hashedOtp,
+      OtpExpiresAt: { $gt: new Date() },
+    }).select("+OtpCode +OtpExpiresAt");
 
     if (!instructor) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     //check if otp has expired
-    if (!instructor.otpExpiresAt || instructor.otpExpiresAt < Date.now()) {
+    if (!instructor.OtpExpiresAt || instructor.OtpExpiresAt <= new Date()) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     // Clear OTP and expiration time after successful validation
-    instructor.otpCode = undefined;
-    instructor.otpExpiresAt = undefined;
+    instructor.OtpCode = "";
+    instructor.OtpExpiresAt = undefined;
     await instructor.save();
 
     return res.status(200).json({
       success: true,
       message: "OTP validated successfully",
-      token: signToken(instructor),
+      token: signPasswordResetToken(instructor),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-exports.instructorResetPassword = async (req, res) => {
+exports.instructorResetPassword = async (req, res, next) => {
   try {
     const { newPassword, confirmPassword } = req.body;
 
-    if (!newPassword || !confirmPassword) {
+    if (
+      typeof newPassword !== "string" ||
+      typeof confirmPassword !== "string" ||
+      !newPassword ||
+      !confirmPassword
+    ) {
       return res.status(400).json({
         message: "Both new password and confirm password are required",
+      });
+    }
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters long",
       });
     }
 
@@ -139,9 +167,17 @@ exports.instructorResetPassword = async (req, res) => {
         .json({ message: "New password and confirm password do not match" });
     }
 
+    if (
+      req.user.role !== "instructor" ||
+      req.user.purpose !== "password_reset"
+    ) {
+      return res.status(403).json({
+        message: "A valid instructor password-reset token is required",
+      });
+    }
     const instructor = await Instructors.findById(req.user.id);
 
-    if (!instructor) {
+    if (!instructor || instructor.accountStatus !== "active") {
       return res.status(404).json({ message: "instructor not found" });
     }
 
@@ -152,7 +188,7 @@ exports.instructorResetPassword = async (req, res) => {
 
     return res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 

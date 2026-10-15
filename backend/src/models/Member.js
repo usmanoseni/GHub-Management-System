@@ -2,6 +2,16 @@ const mongoose = require("mongoose");
 
 const memberSchema = new mongoose.Schema(
   {
+    gym_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "gymCenter",
+    },
+    branchcode: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "GymBranch",
+    },
     firstName: {
       type: String,
       required: true,
@@ -23,6 +33,7 @@ const memberSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      lowercase: true,
       trim: true,
     },
 

@@ -10,11 +10,22 @@ const signToken = (user) =>
     process.env.JWT_SECRET,
     { expiresIn: "1d" },
   );
+const signPasswordResetToken = (user) =>
+  jwt.sign(
+    {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      purpose: "password_reset",
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "10m" },
+  );
 
 const hashOtp = (otp) => crypto.createHash("sha256").update(otp).digest("hex");
 
 // register gym Owner
-exports.registerGymOwner = async (req, res) => {
+exports.registerGymOwner = async (req, res, next) => {
   try {
     const {
       firstname,
@@ -62,12 +73,12 @@ exports.registerGymOwner = async (req, res) => {
       token: signToken(newGymOwner),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 // login gym owner
-exports.loginGymOwner = async (req, res) => {
+exports.loginGymOwner = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
@@ -76,7 +87,9 @@ exports.loginGymOwner = async (req, res) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
-    const gymOwner = await GymOwner.findOne({ email: email });
+    const gymOwner = await GymOwner.findOne({
+      email: email.trim().toLowerCase(),
+    });
 
     if (!gymOwner) {
       return res.status(400).json({ message: "Invalid email or password" });
@@ -94,12 +107,12 @@ exports.loginGymOwner = async (req, res) => {
       token: signToken(gymOwner),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 //gymOwner forgot password
-exports.gymOwnerforgotPassword = async (req, res) => {
+exports.gymOwnerforgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
@@ -107,19 +120,22 @@ exports.gymOwnerforgotPassword = async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    const gymOwner = await GymOwner.findOne({ email });
+    const gymOwner = await GymOwner.findOne({
+      email: email.trim().toLowerCase(),
+    }).select("+otpCode +otpExpiresAt");
 
     if (!gymOwner) {
       return res.status(404).json({ message: "Gym owner not found" });
     }
 
     // Generate a 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const hashedOtp = hashOtp(otp);
 
     // Set OTP and expiration time (10 minutes)
     gymOwner.otpCode = hashedOtp;
-    gymOwner.otpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    gymOwner.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await gymOwner.save();
 
     // Send OTP email to the gym owner
     await sendOtpEmail({
@@ -128,15 +144,17 @@ exports.gymOwnerforgotPassword = async (req, res) => {
       userName: `${gymOwner.firstname} ${gymOwner.lastname}`,
     });
 
-    //save the gym owner with the OTP and expiration time
-    await gymOwner.save();
+    return res.status(200).json({
+      success: true,
+      message: "Password reset code sent",
+    });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 // validate OTP for gym owner
-exports.validateOtp = async (req, res) => {
+exports.validateOtp = async (req, res, next) => {
   try {
     const { otp } = req.body;
 
@@ -147,40 +165,50 @@ exports.validateOtp = async (req, res) => {
 
     const gymOwner = await GymOwner.findOne({
       otpCode: hashedOtp,
-      otpExpiresAt: { $gt: Date.now() },
-    });
+      otpExpiresAt: { $gt: new Date() },
+    }).select("+otpCode +otpExpiresAt");
 
     if (!gymOwner) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     //check if otp has expired
-    if (!gymOwner.otpExpiresAt || gymOwner.otpExpiresAt < Date.now()) {
+    if (!gymOwner.otpExpiresAt || gymOwner.otpExpiresAt <= new Date()) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     // Clear OTP and expiration time after successful validation
-    gymOwner.otpCode = undefined;
+    gymOwner.otpCode = "";
     gymOwner.otpExpiresAt = undefined;
     await gymOwner.save();
 
     return res.status(200).json({
       success: true,
       message: "OTP validated successfully",
-      token: signToken(gymOwner),
+      token: signPasswordResetToken(gymOwner),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-exports.gymOwnerResetPassword = async (req, res) => {
+exports.gymOwnerResetPassword = async (req, res, next) => {
   try {
     const { newPassword, confirmPassword } = req.body;
 
-    if (!newPassword || !confirmPassword) {
+    if (
+      typeof newPassword !== "string" ||
+      typeof confirmPassword !== "string" ||
+      !newPassword ||
+      !confirmPassword
+    ) {
       return res.status(400).json({
         message: "Both new password and confirm password are required",
+      });
+    }
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters long",
       });
     }
 
@@ -190,6 +218,14 @@ exports.gymOwnerResetPassword = async (req, res) => {
         .json({ message: "New password and confirm password do not match" });
     }
 
+    if (
+      req.user.role !== "Owner" ||
+      req.user.purpose !== "password_reset"
+    ) {
+      return res.status(403).json({
+        message: "A valid gym owner password-reset token is required",
+      });
+    }
     const gymOwner = await GymOwner.findById(req.user.id);
 
     if (!gymOwner) {
@@ -203,7 +239,7 @@ exports.gymOwnerResetPassword = async (req, res) => {
 
     return res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 

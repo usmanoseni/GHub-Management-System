@@ -1,4 +1,5 @@
 const express = require("express");
+const passwordResetMiddleware = require("../middleware/passwordResetMiddleware");
 
 const {
   registerGymOwner,
@@ -15,7 +16,11 @@ router.post("/register", registerGymOwner);
 router.post("/login", loginGymOwner);
 router.post("/forgot-password", gymOwnerforgotPassword);
 router.post("/validate-otp", validateOtp);
-router.post("/reset-password", gymOwnerResetPassword);
+router.post(
+  "/reset-password",
+  passwordResetMiddleware,
+  gymOwnerResetPassword,
+);
 router.post("/logout", logout);
 
 module.exports = router;

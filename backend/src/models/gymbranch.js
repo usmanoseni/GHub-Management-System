@@ -4,7 +4,7 @@ const gymBranchSchema = new mongoose.Schema(
   {
     gymCenter_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "GymCenter",
+      ref: "gymCenter",
       required: true,
     },
 

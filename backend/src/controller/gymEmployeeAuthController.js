@@ -10,10 +10,21 @@ const signToken = (user) =>
     process.env.JWT_SECRET,
     { expiresIn: "1d" },
   );
+const signPasswordResetToken = (user) =>
+  jwt.sign(
+    {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      purpose: "password_reset",
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "10m" },
+  );
 
 const hashOtp = (otp) => crypto.createHash("sha256").update(otp).digest("hex");
 
-exports.gymEmployeeLogin = async (req, res) => {
+exports.gymEmployeeLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
@@ -22,9 +33,11 @@ exports.gymEmployeeLogin = async (req, res) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
-    const gymEmployee = await GymEmployee.findOne({ email: email });
+    const gymEmployee = await GymEmployee.findOne({
+      email: email.trim().toLowerCase(),
+    });
 
-    if (!gymEmployee) {
+    if (!gymEmployee || gymEmployee.accountStatus !== "active") {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
@@ -43,12 +56,12 @@ exports.gymEmployeeLogin = async (req, res) => {
       token: signToken(gymEmployee),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 //gymEmployee forgot password
-exports.gymEmployeeforgotPassword = async (req, res) => {
+exports.gymEmployeeforgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
@@ -56,19 +69,22 @@ exports.gymEmployeeforgotPassword = async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    const gymEmployee = await GymEmployee.findOne({ email });
+    const gymEmployee = await GymEmployee.findOne({
+      email: email.trim().toLowerCase(),
+    }).select("+OtpCode +OtpExpiresAt");
 
     if (!gymEmployee) {
       return res.status(404).json({ message: "gym employee not found" });
     }
 
     // Generate a 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const hashedOtp = hashOtp(otp);
 
     // Set OTP and expiration time (10 minutes)
-    gymEmployee.otpCode = hashedOtp;
-    gymEmployee.otpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    gymEmployee.OtpCode = hashedOtp;
+    gymEmployee.OtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await gymEmployee.save();
 
     // Send OTP email to the gym gymEmployee
     await sendOtpEmail({
@@ -77,15 +93,17 @@ exports.gymEmployeeforgotPassword = async (req, res) => {
       userName: `${gymEmployee.firstname} ${gymEmployee.lastname}`,
     });
 
-    //save the gymEmployee with the OTP and expiration time
-    await gymEmployee.save();
+    return res.status(200).json({
+      success: true,
+      message: "Password reset code sent",
+    });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 // validate OTP for gymEmployee
-exports.validateOtp = async (req, res) => {
+exports.validateOtp = async (req, res, next) => {
   try {
     const { otp } = req.body;
 
@@ -95,41 +113,51 @@ exports.validateOtp = async (req, res) => {
     const hashedOtp = hashOtp(otp);
 
     const gymEmployee = await GymEmployee.findOne({
-      otpCode: hashedOtp,
-      otpExpiresAt: { $gt: Date.now() },
-    });
+      OtpCode: hashedOtp,
+      OtpExpiresAt: { $gt: new Date() },
+    }).select("+OtpCode +OtpExpiresAt");
 
     if (!gymEmployee) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     //check if otp has expired
-    if (!gymEmployee.otpExpiresAt || gymEmployee.otpExpiresAt < Date.now()) {
+    if (!gymEmployee.OtpExpiresAt || gymEmployee.OtpExpiresAt <= new Date()) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     // Clear OTP and expiration time after successful validation
-    gymEmployee.otpCode = undefined;
-    gymEmployee.otpExpiresAt = undefined;
+    gymEmployee.OtpCode = "";
+    gymEmployee.OtpExpiresAt = undefined;
     await gymEmployee.save();
 
     return res.status(200).json({
       success: true,
       message: "OTP validated successfully",
-      token: signToken(gymEmployee),
+      token: signPasswordResetToken(gymEmployee),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-exports.gymEmployeeResetPassword = async (req, res) => {
+exports.gymEmployeeResetPassword = async (req, res, next) => {
   try {
     const { newPassword, confirmPassword } = req.body;
 
-    if (!newPassword || !confirmPassword) {
+    if (
+      typeof newPassword !== "string" ||
+      typeof confirmPassword !== "string" ||
+      !newPassword ||
+      !confirmPassword
+    ) {
       return res.status(400).json({
         message: "Both new password and confirm password are required",
+      });
+    }
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters long",
       });
     }
 
@@ -139,7 +167,19 @@ exports.gymEmployeeResetPassword = async (req, res) => {
         .json({ message: "New password and confirm password do not match" });
     }
 
-    const gymEmployee = await GymEmployee.findById(req.user.id);
+    if (
+      !["manager", "receptionist"].includes(req.user.role) ||
+      req.user.purpose !== "password_reset"
+    ) {
+      return res.status(403).json({
+        message: "A valid gym employee password-reset token is required",
+      });
+    }
+    const gymEmployee = await GymEmployee.findOne({
+      _id: req.user.id,
+      role: req.user.role,
+      accountStatus: "active",
+    });
 
     if (!gymEmployee) {
       return res.status(404).json({ message: "Gym employee not found" });
@@ -152,7 +192,7 @@ exports.gymEmployeeResetPassword = async (req, res) => {
 
     return res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 

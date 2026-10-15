@@ -13,7 +13,7 @@ const signToken = (user) =>
 
 const hashOtp = (otp) => crypto.createHash("sha256").update(otp).digest("hex");
 
-exports.memberLogin = async (req, res) => {
+exports.memberLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
@@ -22,9 +22,11 @@ exports.memberLogin = async (req, res) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
-    const member = await Members.findOne({ email: email });
+    const member = await Members.findOne({
+      email: email.trim().toLowerCase(),
+    });
 
-    if (!member) {
+    if (!member || member.accountStatus !== "active") {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
@@ -40,12 +42,11 @@ exports.memberLogin = async (req, res) => {
       token: signToken(member),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-//member forgot password
-exports.memberForgetPassword = async (req, res) => {
+exports.memberForgetPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
@@ -53,36 +54,37 @@ exports.memberForgetPassword = async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    const member = await Members.findOne({ email });
+    const member = await Members.findOne({
+      email: email.trim().toLowerCase(),
+    });
 
     if (!member) {
       return res.status(404).json({ message: "member not found" });
     }
 
     // Generate a 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const hashedOtp = hashOtp(otp);
 
-    // Set OTP and expiration time (10 minutes)
-    member.otpCode = hashedOtp;
-    member.otpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    // Send OTP email to the member
+    member.OtpCode = hashedOtp;
+    member.OtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await member.save();
     await sendOtpEmail({
       email: member.email,
       otp,
-      userName: `${member.firstname} ${member.lastname}`,
+      userName: `${member.firstName} ${member.lastname}`,
     });
 
-    //save the member with the OTP and expiration time
-    await member.save();
+    return res.status(200).json({
+      success: true,
+      message: "Password reset code sent",
+    });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// validate OTP for member
-exports.validateOtp = async (req, res) => {
+exports.validateOtp = async (req, res, next) => {
   try {
     const { otp } = req.body;
 
@@ -92,8 +94,8 @@ exports.validateOtp = async (req, res) => {
     const hashedOtp = hashOtp(otp);
 
     const member = await Members.findOne({
-      otpCode: hashedOtp,
-      otpExpiresAt: { $gt: Date.now() },
+      OtpCode: hashedOtp,
+      OtpExpiresAt: { $gt: new Date() },
     });
 
     if (!member) {
@@ -101,13 +103,12 @@ exports.validateOtp = async (req, res) => {
     }
 
     //check if otp has expired
-    if (!member.otpExpiresAt || member.otpExpiresAt < Date.now()) {
+    if (!member.OtpExpiresAt || member.OtpExpiresAt <= new Date()) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    // Clear OTP and expiration time after successful validation
-    member.otpCode = undefined;
-    member.otpExpiresAt = undefined;
+    member.OtpCode = "";
+    member.OtpExpiresAt = undefined;
     await member.save();
 
     return res.status(200).json({
@@ -116,17 +117,27 @@ exports.validateOtp = async (req, res) => {
       token: signToken(member),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-exports.memberResetPassword = async (req, res) => {
+exports.memberResetPassword = async (req, res, next) => {
   try {
     const { newPassword, confirmPassword } = req.body;
 
-    if (!newPassword || !confirmPassword) {
+    if (
+      typeof newPassword !== "string" ||
+      typeof confirmPassword !== "string" ||
+      !newPassword ||
+      !confirmPassword
+    ) {
       return res.status(400).json({
         message: "Both new password and confirm password are required",
+      });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters long",
       });
     }
 
@@ -136,9 +147,13 @@ exports.memberResetPassword = async (req, res) => {
         .json({ message: "New password and confirm password do not match" });
     }
 
+    if (req.user.role !== "member") {
+      return res.status(403).json({ message: "Member account access required" });
+    }
+
     const member = await Members.findById(req.user.id);
 
-    if (!member) {
+    if (!member || member.accountStatus !== "active") {
       return res.status(404).json({ message: "member not found" });
     }
 
@@ -149,7 +164,7 @@ exports.memberResetPassword = async (req, res) => {
 
     return res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 

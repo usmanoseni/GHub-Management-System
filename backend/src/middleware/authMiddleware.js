@@ -18,6 +18,11 @@ const authMiddleware = (req, res, next) => {
     if (!decoded || typeof decoded !== "object") {
       return res.status(401).json({ message: "Invalid or expired token" });
     }
+    if (decoded.purpose === "password_reset") {
+      return res.status(403).json({
+        message: "Password-reset tokens cannot access protected resources",
+      });
+    }
 
     req.user = decoded;
     return next();
