@@ -4,6 +4,7 @@ const bcryptjs = require("bcryptjs");
 const GymOwner = require("../models/gymOwner");
 const { sendOtpEmail } = require("../services/emailService");
 
+//genetate a token to use for authentication
 const signToken = (user) =>
   jwt.sign(
     { id: user._id.toString(), email: user.email, role: user.role },
@@ -22,6 +23,7 @@ const signPasswordResetToken = (user) =>
     { expiresIn: "10m" },
   );
 
+// hashing my otp code
 const hashOtp = (otp) => crypto.createHash("sha256").update(otp).digest("hex");
 
 // register gym Owner
@@ -88,7 +90,7 @@ exports.loginGymOwner = async (req, res, next) => {
         .json({ message: "Email and password are required" });
     }
     const gymOwner = await GymOwner.findOne({
-      email: email.trim().toLowerCase(),
+      email: email.trim(),
     });
 
     if (!gymOwner) {
@@ -121,7 +123,7 @@ exports.gymOwnerforgotPassword = async (req, res, next) => {
     }
 
     const gymOwner = await GymOwner.findOne({
-      email: email.trim().toLowerCase(),
+      email: email.trim(),
     }).select("+otpCode +otpExpiresAt");
 
     if (!gymOwner) {
@@ -218,10 +220,7 @@ exports.gymOwnerResetPassword = async (req, res, next) => {
         .json({ message: "New password and confirm password do not match" });
     }
 
-    if (
-      req.user.role !== "Owner" ||
-      req.user.purpose !== "password_reset"
-    ) {
+    if (req.user.role !== "Owner" || req.user.purpose !== "password_reset") {
       return res.status(403).json({
         message: "A valid gym owner password-reset token is required",
       });
@@ -243,6 +242,7 @@ exports.gymOwnerResetPassword = async (req, res, next) => {
   }
 };
 
+//gym owner logout
 exports.logout = async (req, res) => {
   res.clearCookie("token", {
     httpOnly: true,

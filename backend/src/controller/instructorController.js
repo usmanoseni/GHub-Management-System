@@ -1,12 +1,13 @@
 const crypto = require("crypto");
 const bcryptjs = require("bcryptjs");
-const mongoose = require("mongoose");
+// const mongoose = require("mongoose");
 const { DeleteObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
 const Instructors = require("../models/Instructor");
 const GymCenter = require("../models/gymCenter");
 const GymBranch = require("../models/gymbranch");
 const GymEmployee = require("../models/gymEmployee");
 const s3 = require("../config/aws_s3");
+require("dotenv").config();
 
 const profileImageTypes = [
   "image/jpeg",
@@ -233,7 +234,7 @@ exports.updateInstructorProfile = async (req, res, next) => {
         }
         updates[field] =
           field === "email" && typeof req.body[field] === "string"
-            ? req.body[field].trim().toLowerCase()
+            ? req.body[field].trim()
             : req.body[field];
       }
     }

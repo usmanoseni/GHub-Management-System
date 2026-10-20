@@ -1,9 +1,8 @@
-const crypto = require("crypto");
-const path = require("path");
+const crypto = require("node:crypto");
+const path = require("node:path");
 require("dotenv").config();
 
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
-
 const s3 = require("../config/aws_s3");
 
 const uploadToS3 = async (file, folder, allowedTypes) => {
@@ -84,15 +83,11 @@ const uploadRegistrationDocument = async (req, res) => {
   }
 
   try {
-    const document = await uploadToS3(
-      req.file,
-      "registration-documents",
-      [
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/msword",
-      ],
-    );
+    const document = await uploadToS3(req.file, "registration-documents", [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/msword",
+    ]);
 
     return res.status(201).json({
       message: "Registration document uploaded successfully",

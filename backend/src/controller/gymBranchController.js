@@ -24,7 +24,7 @@ exports.generateGymBranchCode = async (gymId) => {
       { gym_id: gymId },
       { $inc: { seq: 1 } },
       {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         setDefaultsOnInsert: true,
       },
@@ -39,7 +39,7 @@ exports.generateGymBranchCode = async (gymId) => {
     const counter = await GymBranchCounter.findOneAndUpdate(
       { gym_id: gymId },
       { $inc: { seq: 1 } },
-      { new: true },
+      { returnDocument: "after" },
     );
     if (!counter) {
       throw error;
