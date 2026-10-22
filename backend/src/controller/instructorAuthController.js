@@ -10,6 +10,7 @@ const signToken = (user) =>
     process.env.JWT_SECRET,
     { expiresIn: "1d" },
   );
+
 const signPasswordResetToken = (user) =>
   jwt.sign(
     {

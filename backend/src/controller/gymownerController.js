@@ -1,11 +1,97 @@
-const crypto = require("crypto");
 const bcryptjs = require("bcryptjs");
-const { DeleteObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const crypto = require("node:crypto");
 const GymOwner = require("../models/gymOwner");
 const s3 = require("../config/aws_s3");
 
-const profileImageTypes = ["image/jpeg", "image/png", "image/webp"];
+const profileImageTypes = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+];
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+exports.updateGymOwnerProfileImg = async (req, res, next) => {
+  let uploadedKey;
+  try {
+    if (req.user.role !== "Owner") {
+      return res.status(403).json({ message: "Gym owner access required" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Please upload a profile image" });
+    }
+
+    const gymOwner = await GymOwner.findById(req.user.id);
+    if (!gymOwner) {
+      return res.status(404).json({ message: "Gym owner not found" });
+    }
+
+    const { fileTypeFromBuffer } = await import("file-type");
+    const detectedType = await fileTypeFromBuffer(req.file.buffer);
+    if (!detectedType || !profileImageTypes.includes(detectedType.mime)) {
+      return res.status(400).json({
+        message: "Profile image must be a valid JPEG, PNG, or WebP image",
+      });
+    }
+
+    if (!process.env.AWS_S3_BUCKET) {
+      throw new Error("AWS_S3_BUCKET is not configured");
+    }
+
+    uploadedKey = `gym-owners/profile-images/${crypto.randomUUID()}.${detectedType.ext}`;
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: uploadedKey,
+        Body: req.file.buffer,
+        ContentType: detectedType.mime,
+      }),
+    );
+
+    const previousKey = gymOwner.profile;
+    gymOwner.profile = uploadedKey;
+    await gymOwner.save();
+    const profileImgKey = uploadedKey;
+    uploadedKey = undefined;
+
+    if (previousKey?.startsWith("gym-owners/profile-images/")) {
+      try {
+        await s3.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET,
+            Key: previousKey,
+          }),
+        );
+      } catch (error) {
+        console.error("Failed to delete previous owner profile image:", error);
+      }
+    }
+
+    return res.status(200).json({
+      message: "Profile image updated successfully",
+      profile: profileImgKey,
+    });
+  } catch (error) {
+    if (uploadedKey && process.env.AWS_S3_BUCKET) {
+      try {
+        await s3.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET,
+            Key: uploadedKey,
+          }),
+        );
+      } catch (cleanupError) {
+        console.error("Failed to clean up uploaded owner image:", cleanupError);
+      }
+    }
+    if (error.statusCode === 400) {
+      return res.status(400).json({ message: error.message });
+    }
+    return next(error);
+  }
+};
 
 const sanitizeGymOwner = (gymOwner) => {
   const result = gymOwner.toObject();
@@ -81,77 +167,6 @@ exports.updateGymOwnerProfile = async (req, res, next) => {
   }
 };
 
-exports.updateGymOwnerProfileImg = async (req, res, next) => {
-  let uploadedKey;
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "Please upload a profile image" });
-    }
-
-    const gymOwner = await GymOwner.findById(req.user.id);
-    if (!gymOwner) {
-      return res.status(404).json({ message: "Gym owner not found" });
-    }
-
-    const { fileTypeFromBuffer } = await import("file-type");
-    const detectedType = await fileTypeFromBuffer(req.file.buffer);
-    if (!detectedType || !profileImageTypes.includes(detectedType.mime)) {
-      return res.status(400).json({
-        message: "Profile image must be a valid JPEG, PNG, or WebP image",
-      });
-    }
-    if (!process.env.AWS_S3_BUCKET) {
-      throw new Error("AWS_S3_BUCKET is not configured");
-    }
-
-    uploadedKey = `gym-owners/profile-images/${crypto.randomUUID()}.${detectedType.ext}`;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET,
-        Key: uploadedKey,
-        Body: req.file.buffer,
-        ContentType: detectedType.mime,
-      }),
-    );
-
-    const previousKey = gymOwner.profile;
-    gymOwner.profile = uploadedKey;
-    await gymOwner.save();
-
-    if (previousKey?.startsWith("gym-owners/profile-images/")) {
-      try {
-        await s3.send(
-          new DeleteObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET,
-            Key: previousKey,
-          }),
-        );
-      } catch (error) {
-        console.error("Failed to delete previous owner profile image:", error);
-      }
-    }
-
-    return res.status(200).json({
-      message: "Profile image updated successfully",
-      profile: uploadedKey,
-    });
-  } catch (error) {
-    if (uploadedKey && process.env.AWS_S3_BUCKET) {
-      try {
-        await s3.send(
-          new DeleteObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET,
-            Key: uploadedKey,
-          }),
-        );
-      } catch (cleanupError) {
-        console.error("Failed to clean up uploaded owner image:", cleanupError);
-      }
-    }
-    return next(error);
-  }
-};
-
 exports.validateGymOwnerPassword = async (req, res, next) => {
   try {
     const { password } = req.body;
@@ -177,10 +192,11 @@ exports.validateGymOwnerPassword = async (req, res, next) => {
 
 exports.changeGymOwnerPassword = async (req, res, next) => {
   try {
-    const { currentPassword, newPassword, confirmPassword } = req.body;
-    if (!currentPassword || !newPassword || !confirmPassword) {
+    const { newPassword, confirmPassword } = req.body;
+    if (!newPassword || !confirmPassword) {
       return res.status(400).json({
-        message: "Current password, new password, and confirmation are required",
+        message:
+          "Current password, new password, and confirmation are required",
       });
     }
     if (newPassword !== confirmPassword) {
@@ -197,9 +213,6 @@ exports.changeGymOwnerPassword = async (req, res, next) => {
     const gymOwner = await GymOwner.findById(req.user.id);
     if (!gymOwner) {
       return res.status(404).json({ message: "Gym owner not found" });
-    }
-    if (!(await bcryptjs.compare(currentPassword, gymOwner.password))) {
-      return res.status(401).json({ message: "Current password is incorrect" });
     }
 
     gymOwner.password = await bcryptjs.hash(newPassword, 12);

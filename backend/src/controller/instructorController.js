@@ -1,12 +1,16 @@
-const crypto = require("crypto");
 const bcryptjs = require("bcryptjs");
-// const mongoose = require("mongoose");
-const { DeleteObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
+const mongoose = require("mongoose");
+const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const crypto = require("node:crypto");
 const Instructors = require("../models/Instructor");
-const GymCenter = require("../models/gymCenter");
 const GymBranch = require("../models/gymbranch");
 const GymEmployee = require("../models/gymEmployee");
 const s3 = require("../config/aws_s3");
+const {
+  findGymCenter,
+  findGymBranch,
+  resolveGymBranch,
+} = require("../utils/gymIdentifiers");
 require("dotenv").config();
 
 const profileImageTypes = [
@@ -15,6 +19,7 @@ const profileImageTypes = [
   "image/png",
   "image/webp",
 ];
+
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 const handleInstructorError = (res, next, error) => {
@@ -27,11 +32,11 @@ const handleInstructorError = (res, next, error) => {
 };
 
 const findOwnedGym = async (gymId, userId) => {
-  if (!mongoose.Types.ObjectId.isValid(gymId)) {
+  if (typeof gymId !== "string" || !gymId.trim()) {
     return { error: { status: 400, message: "Invalid gym ID" } };
   }
 
-  const gym = await GymCenter.findOne({ _id: gymId, gymOwner_id: userId });
+  const gym = await findGymCenter(gymId, userId);
   return gym
     ? { gym }
     : { error: { status: 404, message: "Gym center not found" } };
@@ -82,23 +87,29 @@ exports.createInstructor = async (req, res, next) => {
 
     let instructorGymId;
     let instructorBranchId;
+    let instructorGym;
     if (req.user.role === "Owner") {
-      if (
-        !mongoose.Types.ObjectId.isValid(gym_id) ||
-        !mongoose.Types.ObjectId.isValid(branchcode)
-      ) {
+      if (!gym_id || !branchcode) {
         return res.status(400).json({
           message: "A valid gym and branch ID are required",
         });
       }
-      const gymResult = await findOwnedGym(gym_id, req.user.id);
-      if (gymResult.error) {
-        return res.status(gymResult.error.status).json({
-          message: gymResult.error.message,
+      const { gym, branch } = await resolveGymBranch(
+        gym_id,
+        branchcode,
+        req.user.id,
+      );
+      if (!gym) {
+        return res.status(404).json({ message: "Gym center not found" });
+      }
+      if (!branch) {
+        return res.status(400).json({
+          message: "The selected branch does not belong to this gym",
         });
       }
-      instructorGymId = gym_id;
-      instructorBranchId = branchcode;
+      instructorGym = gym;
+      instructorGymId = gym.gym_Id;
+      instructorBranchId = branch.branchCode;
     } else if (
       req.user.role === "manager" ||
       req.user.role === "receptionist"
@@ -108,18 +119,39 @@ exports.createInstructor = async (req, res, next) => {
         role: req.user.role,
         accountStatus: "active",
       });
+      if (!manager) {
+        return res.status(403).json({
+          message:
+            "Employees can only add instructors to their assigned branch",
+        });
+      }
+      const assigned = await resolveGymBranch(
+        manager.gym_id,
+        manager.branchcode,
+      );
+      if (!assigned.gym || !assigned.branch) {
+        return res.status(404).json({
+          message: "The employee's assigned gym branch could not be found",
+        });
+      }
+      const requestedGym = gym_id ? await findGymCenter(gym_id) : assigned.gym;
+      const requestedBranch = branchcode
+        ? await findGymBranch(branchcode, assigned.gym._id)
+        : assigned.branch;
       if (
-        !manager ||
-        (gym_id && manager.gym_id.toString() !== String(gym_id)) ||
-        (branchcode && manager.branchcode.toString() !== String(branchcode))
+        !requestedGym ||
+        !requestedBranch ||
+        String(requestedGym._id) !== String(assigned.gym._id) ||
+        String(requestedBranch._id) !== String(assigned.branch._id)
       ) {
         return res.status(403).json({
           message:
             "Employees can only add instructors to their assigned branch",
         });
       }
-      instructorGymId = manager.gym_id;
-      instructorBranchId = manager.branchcode;
+      instructorGym = assigned.gym;
+      instructorGymId = assigned.gym.gym_Id;
+      instructorBranchId = assigned.branch.branchCode;
     } else {
       return res.status(403).json({
         message:
@@ -128,8 +160,8 @@ exports.createInstructor = async (req, res, next) => {
     }
 
     const branch = await GymBranch.findOne({
-      _id: instructorBranchId,
-      gymCenter_id: instructorGymId,
+      branchCode: instructorBranchId,
+      gymCenter_id: instructorGym._id,
       status: "active",
     });
     if (!branch) {
@@ -171,6 +203,101 @@ exports.createInstructor = async (req, res, next) => {
   }
 };
 
+exports.updateInstructorProfileImg = async (req, res, next) => {
+  let uploadedKey;
+  try {
+    if (req.user.role !== "instructor") {
+      return res
+        .status(403)
+        .json({ message: "Instructor account access required" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Please upload a profile image" });
+    }
+
+    const instructor = await Instructors.findOne({
+      _id: req.user.id,
+      role: "instructor",
+      accountStatus: "active",
+    });
+    if (!instructor) {
+      return res
+        .status(404)
+        .json({ message: "Active instructor account not found" });
+    }
+
+    const { fileTypeFromBuffer } = await import("file-type");
+    const detectedType = await fileTypeFromBuffer(req.file.buffer);
+    if (!detectedType || !profileImageTypes.includes(detectedType.mime)) {
+      return res.status(400).json({
+        message: "Profile image must be a valid JPEG, PNG, or WebP image",
+      });
+    }
+
+    if (!process.env.AWS_S3_BUCKET) {
+      throw new Error("AWS_S3_BUCKET is not configured");
+    }
+
+    uploadedKey = `instructors/profile-images/${crypto.randomUUID()}.${detectedType.ext}`;
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: uploadedKey,
+        Body: req.file.buffer,
+        ContentType: detectedType.mime,
+      }),
+    );
+
+    const previousKey = instructor.profile;
+    instructor.profile = uploadedKey;
+    await instructor.save();
+    const profileImgKey = uploadedKey;
+    uploadedKey = undefined;
+
+    if (previousKey?.startsWith("instructors/profile-images/")) {
+      try {
+        await s3.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET,
+            Key: previousKey,
+          }),
+        );
+      } catch (error) {
+        console.error(
+          "Failed to delete previous instructor profile image:",
+          error,
+        );
+      }
+    }
+
+    return res.status(200).json({
+      message: "Profile image updated successfully",
+      profile: profileImgKey,
+    });
+  } catch (error) {
+    if (uploadedKey && process.env.AWS_S3_BUCKET) {
+      try {
+        await s3.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET,
+            Key: uploadedKey,
+          }),
+        );
+      } catch (cleanupError) {
+        console.error(
+          "Failed to clean up uploaded instructor image:",
+          cleanupError,
+        );
+      }
+    }
+    if (error.statusCode === 400) {
+      return res.status(400).json({ message: error.message });
+    }
+    return next(error);
+  }
+};
+
 exports.getInstructorProfile = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -185,17 +312,14 @@ exports.getInstructorProfile = async (req, res, next) => {
       return res.status(404).json({ message: "Instructor not found" });
     }
 
-    if (req.user.role !== "Owner" && req.user.id !== instructor.id) {
+    if (req.user.role !== "instructor" && req.user.id !== instructor.id) {
       return res
         .status(403)
         .json({ message: "You cannot access this profile" });
     }
 
-    if (req.user.role === "Owner") {
-      const gym = await GymCenter.findOne({
-        _id: instructor.gym_id,
-        gymOwner_id: req.user.id,
-      });
+    if (req.user.role === "instructor") {
+      const gym = await findGymCenter(instructor.gym_id, req.user.id);
       if (!gym) {
         return res.status(404).json({ message: "Instructor not found" });
       }
@@ -257,84 +381,6 @@ exports.updateInstructorProfile = async (req, res, next) => {
     });
   } catch (error) {
     return handleInstructorError(res, next, error);
-  }
-};
-
-exports.updateInstructorProfileImg = async (req, res, next) => {
-  let uploadedKey;
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "Please upload a profile image" });
-    }
-
-    const instructor = await Instructors.findById(req.user.id);
-    if (!instructor) {
-      return res.status(404).json({ message: "Instructor not found" });
-    }
-
-    const { fileTypeFromBuffer } = await import("file-type");
-    const detectedType = await fileTypeFromBuffer(req.file.buffer);
-    if (!detectedType || !profileImageTypes.includes(detectedType.mime)) {
-      return res.status(400).json({
-        message: "Profile image must be a valid JPEG, PNG, or WebP image",
-      });
-    }
-
-    if (!process.env.AWS_S3_BUCKET) {
-      throw new Error("AWS_S3_BUCKET is not configured");
-    }
-
-    uploadedKey = `instructors/profile-images/${crypto.randomUUID()}.${detectedType.ext}`;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET,
-        Key: uploadedKey,
-        Body: req.file.buffer,
-        ContentType: detectedType.mime,
-      }),
-    );
-
-    const previousKey = instructor.profile;
-    instructor.profile = uploadedKey;
-    await instructor.save();
-
-    if (previousKey?.startsWith("instructors/profile-images/")) {
-      try {
-        await s3.send(
-          new DeleteObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET,
-            Key: previousKey,
-          }),
-        );
-      } catch (error) {
-        console.error(
-          "Failed to delete previous instructor profile image:",
-          error,
-        );
-      }
-    }
-
-    return res.status(200).json({
-      message: "Profile image updated successfully",
-      profile: uploadedKey,
-    });
-  } catch (error) {
-    if (uploadedKey && process.env.AWS_S3_BUCKET) {
-      try {
-        await s3.send(
-          new DeleteObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET,
-            Key: uploadedKey,
-          }),
-        );
-      } catch (cleanupError) {
-        console.error(
-          "Failed to clean up uploaded instructor image:",
-          cleanupError,
-        );
-      }
-    }
-    return next(error);
   }
 };
 

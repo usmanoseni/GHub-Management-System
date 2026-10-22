@@ -27,7 +27,9 @@ router.use(async (req, res, next) => {
       accountStatus: "active",
     });
     if (!member) {
-      return res.status(403).json({ message: "Active member account required" });
+      return res
+        .status(403)
+        .json({ message: "Active member account required" });
     }
     return next();
   } catch (error) {
@@ -36,7 +38,11 @@ router.use(async (req, res, next) => {
 });
 router.get("/me", getMemberProfile);
 router.patch("/me", updateMemberProfile);
-router.post("/me/profile-image", upload.single("image"), updateMemberProfileImg);
+router.post(
+  "/me/profile-image",
+  upload.single("image"),
+  updateMemberProfileImg,
+);
 router.post("/me/validate-password", validateMemberPassword);
 router.patch("/me/password", changeMemberPassword);
 

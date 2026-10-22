@@ -5,7 +5,6 @@ const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 const gymOwnerAuthRouter = require("./routes/gymOwnerAuthRouter");
 const gymOwnerRouter = require("./routes/gymOwnerRouter");
 const gymCenterRouter = require("./routes/gymCenterRouter");
-const imageRouter = require("./routes/uploadRouter");
 const instructorAuthRouter = require("./routes/instructorAuthRouter");
 const instructorRouter = require("./routes/instructorRouter");
 const gymBranchRouter = require("./routes/gymBranchRouter");
@@ -27,12 +26,11 @@ app.use("/api/v1/auth", gymOwnerAuthRouter);
 app.use("/api/v1/gym-owner", gymOwnerRouter);
 app.use("/api/v1/gym-centers", gymCenterRouter);
 app.use("/api/v1/gym-branches", gymBranchRouter);
-app.use("/api/v1/images", imageRouter);
-app.use("/api/v1/instructor", instructorAuthRouter);
+app.use("/api/v1/instructors/auth", instructorAuthRouter);
 app.use("/api/v1/instructors", instructorRouter);
-app.use("/api/v1/member", memberAuthRouter);
+app.use("/api/v1/members/auth", memberAuthRouter);
 app.use("/api/v1/members", memberRouter);
-app.use("/api/v1/gymEmployee", gymEmployeeAuthRouter);
+app.use("/api/v1/gym-employees/auth", gymEmployeeAuthRouter);
 app.use("/api/v1/gym-employees", gymEmployeeRouter);
 
 router.get("/health", (req, res) => {

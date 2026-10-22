@@ -210,7 +210,7 @@ exports.createGymCenter = asyncHandler(async (req, res) => {
   });
 });
 
-// Get gym centers by owner ID
+//Get gym centers by owner ID
 exports.getGymCentersByOwnerId = async (req, res, next) => {
   try {
     const { ownerId } = req.params;

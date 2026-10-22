@@ -19,8 +19,8 @@ router.use((req, res, next) => {
   return next();
 });
 router.post("/", createGymBranch);
-router.get("/gym-center/:gymCenterId", getBranchesByGymCenter);
-router.patch("/:branchId", updateBranchById);
+router.get("/:gymCenterId", getBranchesByGymCenter);
+router.patch("/:branchCode", updateBranchById);
 router.patch("/:branchId/status", updateBranchStatus);
 
 module.exports = router;

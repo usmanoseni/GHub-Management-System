@@ -3,14 +3,15 @@ const mongoose = require("mongoose");
 const gymEmployeeSchema = new mongoose.Schema(
   {
     gym_id: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       required: true,
-      ref: "gymCenter",
+      trim: true,
     },
     branchcode: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       required: true,
-      ref: "GymBranch",
+      trim: true,
+      uppercase: true,
     },
     firstname: {
       type: String,

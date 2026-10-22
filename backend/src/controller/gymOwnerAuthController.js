@@ -158,12 +158,12 @@ exports.gymOwnerforgotPassword = async (req, res, next) => {
 // validate OTP for gym owner
 exports.validateOtp = async (req, res, next) => {
   try {
-    const { otp } = req.body;
+    const { otpCode } = req.body;
 
-    if (!otp) {
+    if (!otpCode) {
       return res.status(400).json({ message: "OTP is required" });
     }
-    const hashedOtp = hashOtp(otp);
+    const hashedOtp = hashOtp(otpCode);
 
     const gymOwner = await GymOwner.findOne({
       otpCode: hashedOtp,

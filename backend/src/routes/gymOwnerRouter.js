@@ -21,7 +21,11 @@ router.use((req, res, next) => {
 
 router.get("/me", getGymOwnerProfile);
 router.patch("/me", updateGymOwnerProfile);
-router.post("/me/profile-image", upload.single("image"), updateGymOwnerProfileImg);
+router.post(
+  "/me/profile-image",
+  upload.single("image"),
+  updateGymOwnerProfileImg,
+);
 router.post("/me/validate-password", validateGymOwnerPassword);
 router.patch("/me/password", changeGymOwnerPassword);
 

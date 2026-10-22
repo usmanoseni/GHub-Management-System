@@ -1,14 +1,22 @@
-const crypto = require("crypto");
 const bcryptjs = require("bcryptjs");
-const mongoose = require("mongoose");
-const { DeleteObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const crypto = require("node:crypto");
 const GymEmployee = require("../models/gymEmployee");
-const GymCenter = require("../models/gymCenter");
 const GymBranch = require("../models/gymbranch");
 const s3 = require("../config/aws_s3");
+// const uploadToS3 = require("../utils/s3Upload");
+const {
+  findGymCenter,
+  findGymBranch,
+  resolveGymBranch,
+} = require("../utils/gymIdentifiers");
 
-const profileImageTypes = ["image/jpeg", "image/png", "image/webp"];
-const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const profileImageTypes = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+];
 
 const sanitizeEmployee = (employee) => {
   const result = employee.toObject();
@@ -17,6 +25,8 @@ const sanitizeEmployee = (employee) => {
   delete result.OtpExpiresAt;
   return result;
 };
+
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 const findManagedEmployee = async (req, employeeId) => {
   if (!mongoose.Types.ObjectId.isValid(employeeId)) {
@@ -29,10 +39,7 @@ const findManagedEmployee = async (req, employeeId) => {
   }
 
   if (req.user.role === "Owner") {
-    const gym = await GymCenter.findOne({
-      _id: employee.gym_id,
-      gymOwner_id: req.user.id,
-    });
+    const gym = await findGymCenter(employee.gym_id, req.user.id);
     if (!gym) {
       return { error: { status: 404, message: "Gym employee not found" } };
     }
@@ -45,10 +52,12 @@ const findManagedEmployee = async (req, employeeId) => {
     if (
       !manager ||
       employee.role !== "receptionist" ||
-      employee.gym_id.toString() !== manager.gym_id.toString() ||
-      employee.branchcode.toString() !== manager.branchcode.toString()
+      String(employee.gym_id) !== String(manager.gym_id) ||
+      String(employee.branchcode) !== String(manager.branchcode)
     ) {
-      return { error: { status: 403, message: "You cannot manage this employee" } };
+      return {
+        error: { status: 403, message: "You cannot manage this employee" },
+      };
     }
   } else {
     return { error: { status: 403, message: "You cannot manage employees" } };
@@ -57,6 +66,7 @@ const findManagedEmployee = async (req, employeeId) => {
   return { employee };
 };
 
+// create a gym employee
 exports.createGymEmployee = async (req, res, next) => {
   try {
     const {
@@ -97,42 +107,80 @@ exports.createGymEmployee = async (req, res, next) => {
 
     let employeeGymId;
     let employeeBranchId;
+    let employeeGym;
     if (req.user.role === "Owner") {
-      if (
-        !mongoose.Types.ObjectId.isValid(gym_id) ||
-        !mongoose.Types.ObjectId.isValid(branchcode)
-      ) {
+      if (!gym_id || !branchcode) {
         return res.status(400).json({ message: "Invalid gym or branch ID" });
       }
 
-      const gym = await GymCenter.findOne({
-        _id: gym_id,
-        gymOwner_id: req.user.id,
-      });
+      const { gym, branch } = await resolveGymBranch(
+        gym_id,
+        branchcode,
+        req.user.id,
+      );
       if (!gym) {
         return res.status(404).json({ message: "Gym center not found" });
       }
-      employeeGymId = gym._id;
-      employeeBranchId = branchcode;
+      if (!branch) {
+        return res
+          .status(404)
+          .json({ message: "Branch not found for this gym" });
+      }
+      employeeGym = gym;
+      employeeGymId = gym.gym_Id;
+      employeeBranchId = branch.branchCode;
     } else if (req.user.role === "manager") {
       const manager = await GymEmployee.findOne({
         _id: req.user.id,
         role: "manager",
         accountStatus: "active",
       });
-      if (
-        !manager ||
-        role !== "receptionist" ||
-        (gym_id && manager.gym_id.toString() !== String(gym_id)) ||
-        (branchcode && manager.branchcode.toString() !== String(branchcode))
-      ) {
+      if (!manager || role !== "receptionist") {
         return res.status(403).json({
           message:
             "Managers can only add receptionists to their assigned branch",
         });
       }
-      employeeGymId = manager.gym_id;
-      employeeBranchId = manager.branchcode;
+
+      const assigned = await resolveGymBranch(
+        manager.gym_id,
+        manager.branchcode,
+      );
+      if (!assigned.gym || !assigned.branch) {
+        return res.status(404).json({
+          message: "The manager's assigned gym branch could not be found",
+        });
+      }
+
+      let requestedGymMatches = true;
+      if (gym_id) {
+        const requestedGym = await findGymCenter(gym_id);
+        requestedGymMatches =
+          Boolean(requestedGym) &&
+          String(requestedGym._id) === String(assigned.gym._id);
+      }
+
+      let requestedBranchMatches = true;
+      if (branchcode) {
+        const requestedBranch = await findGymBranch(
+          branchcode,
+          assigned.gym._id,
+        );
+        requestedBranchMatches =
+          Boolean(requestedBranch) &&
+          String(requestedBranch._id) === String(assigned.branch._id);
+      }
+
+      if (!requestedGymMatches || !requestedBranchMatches) {
+        return res.status(403).json({
+          message:
+            "Managers can only add receptionists to their assigned branch",
+        });
+      }
+
+      employeeGym = assigned.gym;
+      employeeGymId = assigned.gym.gym_Id;
+      employeeBranchId = assigned.branch.branchCode;
     } else {
       return res.status(403).json({
         message: "Only gym owners and branch managers can add gym employees",
@@ -140,12 +188,14 @@ exports.createGymEmployee = async (req, res, next) => {
     }
 
     const branch = await GymBranch.findOne({
-      _id: employeeBranchId,
-      gymCenter_id: employeeGymId,
+      branchCode: employeeBranchId,
+      gymCenter_id: employeeGym._id,
       status: "active",
     });
     if (!branch) {
-      return res.status(404).json({ message: "Active branch not found for this gym" });
+      return res
+        .status(404)
+        .json({ message: "Active branch not found for this gym" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -217,8 +267,7 @@ exports.updateGymEmployeeProfile = async (req, res, next) => {
       if (["firstname", "lastname", "email"].includes(field) && !value) {
         return res.status(400).json({ message: `${field} cannot be empty` });
       }
-      updates[field] =
-        field === "email" ? value.toLowerCase() : value;
+      updates[field] = field === "email" ? value.toLowerCase() : value;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -249,39 +298,56 @@ exports.updateGymEmployeeProfile = async (req, res, next) => {
 exports.updateGymEmployeeProfileImg = async (req, res, next) => {
   let uploadedKey;
   try {
-    if (!req.file) {
+    if (!["manager", "receptionist"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Gym employee access required" });
+    }
+
+    const profileImg = req.file;
+    if (!profileImg) {
       return res.status(400).json({ message: "Please upload a profile image" });
     }
 
-    const employee = await GymEmployee.findById(req.user.id);
+    const employee = await GymEmployee.findOne({
+      _id: req.user.id,
+      role: req.user.role,
+      accountStatus: "active",
+    });
     if (!employee) {
-      return res.status(404).json({ message: "Gym employee not found" });
+      return res
+        .status(404)
+        .json({ message: "Active gym employee account not found" });
     }
 
     const { fileTypeFromBuffer } = await import("file-type");
-    const detectedType = await fileTypeFromBuffer(req.file.buffer);
-    if (!detectedType || !profileImageTypes.includes(detectedType.mime)) {
+    const profileImgDetectedType = await fileTypeFromBuffer(profileImg.buffer);
+    if (
+      !profileImgDetectedType ||
+      !profileImageTypes.includes(profileImgDetectedType.mime)
+    ) {
       return res.status(400).json({
-        message: "Profile image must be a valid JPEG, PNG, or WebP image",
+        message: "profile image must be a valid JPEG, PNG, or WebP image",
       });
     }
+
     if (!process.env.AWS_S3_BUCKET) {
       throw new Error("AWS_S3_BUCKET is not configured");
     }
 
-    uploadedKey = `gym-employees/profile-images/${crypto.randomUUID()}.${detectedType.ext}`;
+    const previousKey = employee.profile;
+    uploadedKey = `gym-employees/profile-images/${crypto.randomUUID()}.${profileImgDetectedType.ext}`;
     await s3.send(
       new PutObjectCommand({
         Bucket: process.env.AWS_S3_BUCKET,
         Key: uploadedKey,
-        Body: req.file.buffer,
-        ContentType: detectedType.mime,
+        Body: profileImg.buffer,
+        ContentType: profileImgDetectedType.mime,
       }),
     );
 
-    const previousKey = employee.profile;
     employee.profile = uploadedKey;
     await employee.save();
+    const profileImgKey = uploadedKey;
+    uploadedKey = undefined;
 
     if (previousKey?.startsWith("gym-employees/profile-images/")) {
       try {
@@ -292,13 +358,16 @@ exports.updateGymEmployeeProfileImg = async (req, res, next) => {
           }),
         );
       } catch (error) {
-        console.error("Failed to delete previous employee profile image:", error);
+        console.error(
+          "Failed to delete previous employee profile image:",
+          error,
+        );
       }
     }
 
     return res.status(200).json({
       message: "Profile image updated successfully",
-      profile: uploadedKey,
+      profile: profileImgKey,
     });
   } catch (error) {
     if (uploadedKey && process.env.AWS_S3_BUCKET) {
@@ -310,8 +379,14 @@ exports.updateGymEmployeeProfileImg = async (req, res, next) => {
           }),
         );
       } catch (cleanupError) {
-        console.error("Failed to clean up uploaded employee image:", cleanupError);
+        console.error(
+          "Failed to clean up uploaded employee image:",
+          cleanupError,
+        );
       }
+    }
+    if (error.statusCode === 400) {
+      return res.status(400).json({ message: error.message });
     }
     return next(error);
   }
@@ -342,10 +417,10 @@ exports.validateGymEmployeePassword = async (req, res, next) => {
 
 exports.changeGymEmployeePassword = async (req, res, next) => {
   try {
-    const { currentPassword, newPassword, confirmPassword } = req.body;
-    if (!currentPassword || !newPassword || !confirmPassword) {
+    const { newPassword, confirmPassword } = req.body;
+    if (!newPassword || !confirmPassword) {
       return res.status(400).json({
-        message: "Current password, new password, and confirmation are required",
+        message: "new password confirmation are required",
       });
     }
     if (newPassword !== confirmPassword) {
@@ -362,9 +437,6 @@ exports.changeGymEmployeePassword = async (req, res, next) => {
     const employee = await GymEmployee.findById(req.user.id);
     if (!employee) {
       return res.status(404).json({ message: "Gym employee not found" });
-    }
-    if (!(await bcryptjs.compare(currentPassword, employee.password))) {
-      return res.status(401).json({ message: "Current password is incorrect" });
     }
 
     employee.password = await bcryptjs.hash(newPassword, 12);
@@ -416,7 +488,9 @@ exports.deleteGymEmployee = async (req, res, next) => {
     }
 
     await result.employee.deleteOne();
-    return res.status(200).json({ message: "Gym employee deleted successfully" });
+    return res
+      .status(200)
+      .json({ message: "Gym employee deleted successfully" });
   } catch (error) {
     return next(error);
   }
