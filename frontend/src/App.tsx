@@ -1,9 +1,14 @@
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import Home from "./pages/LandingPage";
+
 function App() {
   return (
-    <>
-     <h1 className='bg-green-700 font-montserrat font-bold text-3xl font-italic'>GHub</h1>
-    </>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
