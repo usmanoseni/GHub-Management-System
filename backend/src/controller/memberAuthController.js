@@ -10,6 +10,17 @@ const signToken = (user) =>
     process.env.JWT_SECRET,
     { expiresIn: "1d" },
   );
+const signPasswordResetToken = (user) =>
+  jwt.sign(
+    {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      purpose: "password_reset",
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "10m" },
+  );
 
 const hashOtp = (otp) => crypto.createHash("sha256").update(otp).digest("hex");
 
@@ -96,7 +107,7 @@ exports.validateOtp = async (req, res, next) => {
     const member = await Members.findOne({
       OtpCode: hashedOtp,
       OtpExpiresAt: { $gt: new Date() },
-    });
+    }).select("+OtpCode +OtpExpiresAt");
 
     if (!member) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
@@ -114,7 +125,7 @@ exports.validateOtp = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "OTP validated successfully",
-      token: signToken(member),
+      token: signPasswordResetToken(member),
     });
   } catch (error) {
     return next(error);
@@ -147,8 +158,13 @@ exports.memberResetPassword = async (req, res, next) => {
         .json({ message: "New password and confirm password do not match" });
     }
 
-    if (req.user.role !== "member") {
-      return res.status(403).json({ message: "Member account access required" });
+    if (
+      req.user.role !== "member" ||
+      req.user.purpose !== "password_reset"
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Member account access required" });
     }
 
     const member = await Members.findById(req.user.id);

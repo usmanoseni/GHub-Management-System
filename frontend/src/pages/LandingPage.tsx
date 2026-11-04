@@ -64,13 +64,13 @@ export default function LandingPage() {
 
           <div className="hidden items-center gap-3 md:flex">
             <Link
-              to="/login"
+              to="/v1/auth/login"
               className="rounded-lg px-4 py-2.5 font-semibold text-[#082b3c] hover:bg-slate-50"
             >
               Sign in
             </Link>
             <Link
-              to="/register"
+              to="/v1/auth/register"
               className="rounded-lg bg-[#10b981] px-5 py-3 font-semibold text-white transition hover:bg-emerald-600"
             >
               Get started <ArrowRight className="ml-1 inline" size={17} />
