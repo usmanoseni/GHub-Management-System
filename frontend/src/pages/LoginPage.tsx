@@ -367,7 +367,7 @@ const LoginPage: React.FC = () => {
                       name="email"
                       value={form.email}
                       onChange={update}
-                    placeholder="Enter your email"
+                    placeholder="you@example.com"
                     autoComplete="email"
                     required
                     className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-gray-700 outline-none placeholder:text-gray-400"

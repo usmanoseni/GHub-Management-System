@@ -10,6 +10,23 @@ interface LoginData {
   email: string;
   password: string;
 }
+interface RegisterData{
+  email: string;
+  password: string;
+  firstname: string;
+  lastname: string;
+  middlename: string;
+  address: string;
+  state: string;
+  country: string;
+  phone_no: string;
+}
+
+interface RegisterResponse {
+  success: boolean;
+  message: string;
+  token: string;
+}
 
 interface ForgotPasswordData {
   email: string;
@@ -95,3 +112,13 @@ export const resetPassword = async (
 
   return response.data;
 };
+
+export const register = async (
+  credentials: RegisterData,
+): Promise<RegisterResponse> => {
+  const response = await api.post<RegisterResponse>(
+    "/api/v1/auth/register",
+    credentials,
+  );
+  return response.data;
+}
