@@ -107,6 +107,7 @@ exports.loginGymOwner = async (req, res, next) => {
       success: true,
       message: "Login successful",
       token: signToken(gymOwner),
+      onboardingStatus: gymOwner.onboardingStatus,
     });
   } catch (error) {
     return next(error);

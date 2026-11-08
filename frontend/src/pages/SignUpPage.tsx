@@ -127,11 +127,11 @@ const SignUpPage = () => {
     " w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100";
 
   const labelClass =
-    "mb-2 block text-sm font-semibold text-gray-700  after:text-red-400 after:ml-0.5 after:content-['*']";
+    "mb-2 block text-sm font-medium text-gray-700  after:text-red-400 after:ml-0.5 after:content-['*']";
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gray-50 px-4 py-10">
-      <div className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_at_72%_35%,rgba(187,247,208,0.45),transparent_38%),radial-gradient(ellipse_at_15%_10%,rgba(220,252,231,0.55),transparent_32%)]" />
+      <div className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_at_72%_35%,rgba(187,247,208,0.35),transparent_18%),radial-gradient(ellipse_at_15%_10%,rgba(220,252,231,0.40),transparent_12%)]" />
         {!success ?(<div className="flex relative w-full ">
         <section className="hidden  md:block md:fixed  md:w-[40%] md:top-0 md:left-0 h-[100vh]">
           <img src={gymImg[rotateImg]} alt="Sign Up" className='absolute z-10 w-full h-full object-cover transition-opacity duration-1000 ease-in-out' />
@@ -233,7 +233,7 @@ const SignUpPage = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="middlename" className="mb-2 block text-sm font-semibold text-gray-700">
+                    <label htmlFor="middlename" className="mb-2 block text-sm font-medium text-gray-700">
                         Middle name
                     </label>
                     <input

@@ -147,7 +147,7 @@ exports.onboardMail = async ({ gymOwner, gymCenter }) => {
     },
   ]);
 
-  return transporter.sendMail({
+  const result = await transporter.sendMail({
     from: {
       address: EMAIL_FROM,
       name: "GHub Platform",
@@ -157,6 +157,16 @@ exports.onboardMail = async ({ gymOwner, gymCenter }) => {
     html,
     attachments,
   });
+
+  const recipientAccepted = result.accepted.some(
+    (recipient) =>
+      recipient.toLowerCase() === gymOwner.email.trim().toLowerCase(),
+  );
+  if (!recipientAccepted) {
+    throw new Error("SMTP server did not accept the onboarding email recipient.");
+  }
+
+  return result;
 };
 
 // Send an email verification OTP.

@@ -1,10 +1,11 @@
-
 import { useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { isAxiosError } from "axios";
 import { Logo } from "../assets/asset";
-
+import { createGymCenter } from "../services/gymService";
+import type { GymCenterForm } from "../services/gymService";
 
 
 const steps = [
@@ -27,36 +28,18 @@ const steps = [
 ];
 
 const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition duration-200 placeholder:text-gray-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50";
+  "w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition duration-200 placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-50";
 
 const labelClass =
-  "mb-2 block text-sm font-semibold text-gray-700";
+  "mb-2 block text-sm font-medium text-gray-700 after:text-red-400 after:ml-0.5 after:content-['*'] ";
+const optionalLabelClass = "mb-2 block text-sm font-medium text-gray-700";
 
-interface GymCenterForm {
-  gymName: string;
-  gymLogo: File | null;
-  gymAddress: string;
-  state: string;
-  localGovernmentArea: string;
-  country: string;
-  businessPhone: string;
-  businessEmail: string;
-  businessRegistrationType: string;
-  cacRegistrationNumber: string;
-  registrationDocument: File | null;
-  description: string;
-  socialMediaUrl: {
-    facebook: string;
-    instagram: string;
-    tiktok: string;
-    x: string;
-  };
-}
 
 interface FormFieldProps {
   label: string;
   children: ReactNode;
   className?: string;
+  optional?: boolean;
 }
 
 interface FileUploadProps {
@@ -95,14 +78,16 @@ const initialForm: GymCenterForm = {
   },
 };
 
-// --------------------------------------------------
-// REUSABLE COMPONENTS
-// --------------------------------------------------
 
-function FormField({ label, children, className = "" }: FormFieldProps) {
+function FormField({
+  label,
+  children,
+  className = "",
+  optional = false,
+}: FormFieldProps) {
   return (
     <div className={className}>
-      <label className={labelClass}>{label}</label>
+      <label className={optional ? optionalLabelClass : labelClass}>{label}</label>
       {children}
     </div>
   );
@@ -125,15 +110,15 @@ function FileUpload({
 
       <div
         onClick={() => inputRef.current?.click()}
-        className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 px-5 py-7 text-center transition hover:border-emerald-400 hover:bg-emerald-50/40"
+        className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 px-5 py-2 text-center transition hover:border-emerald-400 hover:bg-emerald-50/40"
       >
-        <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+        <div className="mb-3 flex size-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
           <svg
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.7"
-            className="size-5"
+            className="size-4.5"
           >
             <path
               strokeLinecap="round"
@@ -143,7 +128,7 @@ function FileUpload({
           </svg>
         </div>
 
-        <p className="text-sm font-semibold text-gray-700">
+        <p className="text-xs font-semibold text-gray-700">
           {file ? file.name : "Click to upload a file"}
         </p>
 
@@ -178,7 +163,9 @@ function FileUpload({
             }}
             className="text-xs font-semibold text-red-500 hover:text-red-700"
           >
-            Remove
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" className="size-5.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
           </button>
         </div>
       )}
@@ -197,9 +184,6 @@ function ReviewItem({ label, value }: ReviewItemProps) {
   );
 }
 
-// --------------------------------------------------
-// MAIN COMPONENT
-// --------------------------------------------------
 
 export default function CreateGymCenter() {
   const navigate = useNavigate();
@@ -212,9 +196,6 @@ export default function CreateGymCenter() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // --------------------------------------------------
-  // UPDATE FORM
-  // --------------------------------------------------
 
   const updateGymForm = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -250,10 +231,6 @@ export default function CreateGymCenter() {
       [name]: file,
     }));
   };
-
-  // --------------------------------------------------
-  // STEP VALIDATION
-  // --------------------------------------------------
 
   const validateStep = () => {
     if (!formRef.current) return false;
@@ -301,9 +278,6 @@ export default function CreateGymCenter() {
     });
   };
 
-  // --------------------------------------------------
-  // SUBMIT GYM CENTER
-  // --------------------------------------------------
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -325,69 +299,30 @@ export default function CreateGymCenter() {
         throw new Error("Your session has expired. Please log in again.");
       }
 
-      // FormData is required because the form contains files.
-      const formData = new FormData();
+      const result = await createGymCenter(gymForm);
 
-      Object.entries(gymForm.socialMediaUrl).forEach(([key, value]) => {
-        if (value) {
-          formData.append(`socialMediaUrl[${key}]`, value);
-        }
-      });
-
-      formData.append("gymName", gymForm.gymName);
-      formData.append("gymAddress", gymForm.gymAddress);
-      formData.append("state", gymForm.state);
-      formData.append("localGovernmentArea", gymForm.localGovernmentArea);
-      formData.append("country", gymForm.country);
-      formData.append("businessPhone", gymForm.businessPhone);
-      formData.append("businessEmail", gymForm.businessEmail);
-      formData.append(
-        "businessRegistrationType",
-        gymForm.businessRegistrationType,
-      );
-      formData.append("cacRegistrationNumber", gymForm.cacRegistrationNumber);
-      formData.append("description", gymForm.description);
-      if (gymForm.gymLogo) {
-        formData.append("gymLogo", gymForm.gymLogo);
+      if (result.emailSent) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
       }
-      if (gymForm.registrationDocument) {
-        formData.append("registrationDocument", gymForm.registrationDocument);
-      }
-
-      const apiBaseUrl = import.meta.env.DEV
-        ? ""
-        : import.meta.env.VITE_API_URL;
-
-      if (!import.meta.env.DEV && !apiBaseUrl) {
-        throw new Error("API URL is not configured.");
-      }
-
-      const response = await fetch(
-        `${apiBaseUrl}/api/v1/gym-centers/`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to create gym center."
-        );
-      }
-
-      toast.success("Gym center created successfully!");
 
       navigate("/owner/dashboard");
 
     } catch (err: unknown) {
+      const responseData: unknown = isAxiosError(err)
+        ? err.response?.data
+        : undefined;
+      const responseMessage =
+        typeof responseData === "object" &&
+        responseData !== null &&
+        "message" in responseData &&
+        typeof responseData.message === "string"
+          ? responseData.message
+          : undefined;
       const message =
-        err instanceof Error ? err.message : "Something went wrong.";
+        responseMessage ??
+        (err instanceof Error ? err.message : "Something went wrong.");
       setError(message);
       toast.error(message);
     } finally {
@@ -395,9 +330,6 @@ export default function CreateGymCenter() {
     }
   };
 
-  // --------------------------------------------------
-  // MAIN UI
-  // --------------------------------------------------
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#f8faf9] px-4 py-10">
@@ -437,13 +369,13 @@ export default function CreateGymCenter() {
 
           {/* HEADER */}
 
-          <div className="mb-8">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">
+          <div className="mb-7">
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
                 Gym Owner Onboarding
               </span>
 
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-600">
                 Step {currentStep} of 4
               </span>
             </div>
@@ -460,8 +392,7 @@ export default function CreateGymCenter() {
 
           {/* PROGRESS BAR */}
 
-          <div className="mb-9">
-
+          <div className="mb-7">
             <div className="mb-3 flex justify-between text-xs font-medium">
               <span className="text-gray-500">
                 Registration progress
@@ -476,7 +407,7 @@ export default function CreateGymCenter() {
               {steps.map((step, index) => (
                 <div
                   key={step.title}
-                  className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
+                  className={`h-1 flex-1 rounded-full transition-all duration-500 ${
                     currentStep >= index + 1
                       ? "bg-emerald-500"
                       : "bg-gray-200"
@@ -504,7 +435,7 @@ export default function CreateGymCenter() {
                   </div>
 
                   <span
-                    className={`hidden text-[10px] font-semibold sm:block sm:text-xs ${
+                    className={`hidden text-[10px] font-medium sm:block sm:text-xs ${
                       currentStep === index + 1
                         ? "text-emerald-700"
                         : "text-gray-400"
@@ -524,7 +455,7 @@ export default function CreateGymCenter() {
               {steps[currentStep - 1].title}
             </h3>
 
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm font-medium text-gray-500">
               {steps[currentStep - 1].description}
             </p>
           </div>
@@ -537,14 +468,10 @@ export default function CreateGymCenter() {
             noValidate={false}
           >
 
-            {/* =====================================
-                STEP 1: GYM INFORMATION
-            ====================================== */}
-
             {currentStep === 1 && (
               <div className="animate-[fadeIn_0.3s_ease-in-out] space-y-5">
 
-                <FormField label="Gym Name *">
+                <FormField label="Gym Name">
                   <input
                     type="text"
                     name="gymName"
@@ -558,25 +485,25 @@ export default function CreateGymCenter() {
                   />
                 </FormField>
 
-                <FormField label="Gym Description *">
+                <FormField label="Gym Description">
                   <textarea
                     name="description"
                     value={gymForm.description}
                     onChange={updateGymForm}
                     placeholder="Tell us about your gym, the services you offer and what makes your fitness center unique..."
-                    maxLength={1000}
+                    maxLength={500}
                     rows={5}
                     required
-                    className={`${inputClass} resize-none`}
+                    className={`${inputClass}  resize-none h-22`}
                   />
 
                   <div className="mt-1 text-right text-xs text-gray-400">
-                    {gymForm.description.length}/1000 characters
+                    {gymForm.description.length}/500 characters
                   </div>
                 </FormField>
 
                 <FileUpload
-                  label="Gym Logo *"
+                  label="Gym Logo "
                   name="gymLogo"
                   file={gymForm.gymLogo}
                   onChange={(file) => updateFile("gymLogo", file)}
@@ -588,16 +515,14 @@ export default function CreateGymCenter() {
               </div>
             )}
 
-            {/* =====================================
-                STEP 2: LOCATION DETAILS
-            ====================================== */}
+
 
             {currentStep === 2 && (
               <div className="animate-[fadeIn_0.3s_ease-in-out] grid grid-cols-1 gap-5 sm:grid-cols-2">
 
                 <FormField
-                  label="Gym Address *"
-                  className="sm:col-span-2"
+                  label="Gym Address "
+                  className="sm:col-span-2 "
                 >
                   <input
                     type="text"
@@ -610,7 +535,7 @@ export default function CreateGymCenter() {
                   />
                 </FormField>
 
-                <FormField label="State *">
+                <FormField label="State ">
                   <input
                     type="text"
                     name="state"
@@ -622,7 +547,7 @@ export default function CreateGymCenter() {
                   />
                 </FormField>
 
-                <FormField label="Local Government Area *">
+                <FormField label="Local Government Area ">
                   <input
                     type="text"
                     name="localGovernmentArea"
@@ -635,7 +560,7 @@ export default function CreateGymCenter() {
                 </FormField>
 
                 <FormField
-                  label="Country *"
+                  label="Country "
                   className="sm:col-span-2"
                 >
                   <input
@@ -661,7 +586,7 @@ export default function CreateGymCenter() {
 
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
 
-                  <FormField label="Business Phone *">
+                  <FormField label="Business Phone ">
                     <input
                       type="tel"
                       name="businessPhone"
@@ -673,7 +598,7 @@ export default function CreateGymCenter() {
                     />
                   </FormField>
 
-                  <FormField label="Business Email *">
+                  <FormField label="Business Email ">
                     <input
                       type="email"
                       name="businessEmail"
@@ -686,7 +611,7 @@ export default function CreateGymCenter() {
                   </FormField>
 
                   <FormField
-                    label="Business Registration Type *"
+                    label="Business Registration Type "
                     className="sm:col-span-2"
                   >
                     <select
@@ -723,7 +648,7 @@ export default function CreateGymCenter() {
                       </p>
                     </div>
 
-                    <FormField label="CAC Registration Number">
+                    <FormField label="CAC Registration Number ">
                       <input
                         type="text"
                         name="cacRegistrationNumber"
@@ -736,7 +661,7 @@ export default function CreateGymCenter() {
                     </FormField>
 
                     <FileUpload
-                      label="Registration Document *"
+                      label="Registration Document "
                       name="registrationDocument"
                       file={gymForm.registrationDocument}
                       onChange={(file) =>
@@ -762,7 +687,7 @@ export default function CreateGymCenter() {
 
                 <div className="space-y-5">
 
-                  <FormField label="Facebook URL (Optional)">
+                  <FormField label="Facebook URL (Optional)" optional>
                     <input
                       type="url"
                       name="socialMediaUrl.facebook"
@@ -773,7 +698,7 @@ export default function CreateGymCenter() {
                     />
                   </FormField>
 
-                  <FormField label="Instagram URL (Optional)">
+                  <FormField label="Instagram URL (Optional)" optional>
                     <input
                       type="url"
                       name="socialMediaUrl.instagram"
@@ -784,7 +709,7 @@ export default function CreateGymCenter() {
                     />
                   </FormField>
 
-                  <FormField label="TikTok URL (Optional)">
+                  <FormField label="TikTok URL (Optional)" optional>
                     <input
                       type="url"
                       name="socialMediaUrl.tiktok"
@@ -795,7 +720,7 @@ export default function CreateGymCenter() {
                     />
                   </FormField>
 
-                  <FormField label="X URL (Optional)">
+                  <FormField label="X URL (Optional)" optional>
                     <input
                       type="url"
                       name="socialMediaUrl.x"
@@ -919,14 +844,14 @@ export default function CreateGymCenter() {
 
             {/* NAVIGATION BUTTONS */}
 
-            <div className="mt-9 flex items-center justify-between gap-4 border-t border-gray-100 pt-6">
+            <div className="mt-7 flex items-center justify-between gap-4 border-t border-gray-100 pt-6">
 
               {currentStep > 1 ? (
                 <button
                   type="button"
                   onClick={prevStep}
                   disabled={loading}
-                  className="flex items-center gap-2 rounded-lg border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-600 transition hover:border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-lg border border-gray-200 cursor-pointer px-4 py-2 text-sm font-semibold text-gray-600 transition hover:border-gray-300 hover:bg-gray-50 disabled:opacity-50"
                 >
                   <span>←</span>
                   Previous
@@ -943,7 +868,7 @@ export default function CreateGymCenter() {
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="flex items-center gap-2 rounded-lg bg-linear-to-r from-emerald-600 to-emerald-700 px-7 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-100 transition hover:from-emerald-700 hover:to-emerald-800"
+                  className="flex items-center gap-2 rounded-lg bg-linear-to-r from-emerald-600 to-emerald-700 cursor-pointer px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-100 transition hover:from-emerald-700 hover:to-emerald-800"
                 >
                   Continue
                   <span>→</span>
@@ -952,7 +877,7 @@ export default function CreateGymCenter() {
                 <button
                   type="submit"
                   disabled={loading || !agreeTerms}
-                  className="flex min-w-40 items-center justify-center gap-2 rounded-lg bg-linear-to-r from-emerald-600 to-emerald-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-100 transition hover:from-emerald-700 hover:to-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex min-w-40 items-center justify-center gap-2 rounded-lg bg-linear-to-r from-emerald-600 to-emerald-700 cursor-pointer px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-100 transition hover:from-emerald-700 hover:to-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? (
                     <>
@@ -962,7 +887,6 @@ export default function CreateGymCenter() {
                   ) : (
                     <>
                       Create Gym Center
-                      <span>→</span>
                     </>
                   )}
                 </button>

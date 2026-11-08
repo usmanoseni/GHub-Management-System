@@ -136,7 +136,11 @@ const LoginPage: React.FC = () => {
           localStorage.setItem("ghub_token", response.token);
           toast.success("Login successful!");
           if(selectedRole === "owner") {
-            setTimeout(() => navigate("/owner/dashboard", { replace: true }), 1200);
+            const destination =
+              response.onboardingStatus === "completed"
+                ? "/owner/dashboard"
+                : "/v1/gym-center";
+            setTimeout(() => navigate(destination, { replace: true }), 1200);
           }else if(selectedRole === "staff") {
             setTimeout(() => navigate("/gym-employees/dashboard", { replace: true }), 1200);
           }else if(selectedRole === "instructor") {
