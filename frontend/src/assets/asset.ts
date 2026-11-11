@@ -11,6 +11,8 @@ import gym_anime1 from "./Workout-rafiki.png"
 import gym_anime2 from "./Pilates-bro.png"
 import gym_anime3 from "./Workout-pana.png"
 import gym_anime4 from "./Fitness tracker-pana.png"
+import qrcode from "./qr_code.jpg"
+import hurray from "./hurray.png"
 
 
 const Logo = {
@@ -19,7 +21,9 @@ const Logo = {
 }
 
 const icons = {
-    mark
+    mark,
+    qrcode,
+    hurray
 }
 
 const anime = [

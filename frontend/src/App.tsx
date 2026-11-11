@@ -4,6 +4,12 @@ import Home from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import Dashboard from "./pages/gym_owner/dashboard";
 import DashboardMember from "./pages/member/Dashboard";
+import Profile from "./pages/member/Profile";
+import Notification from "./pages/member/Notification";
+import NutrientionTip from "./pages/member/NutrientionTip";
+import Payment from "./pages/member/Payment";
+import ClassBooking from "./pages/member/ClassBooking";
+import membership from "./pages/member/membership";
 import ForgetPassword from "./pages/Forget_password";
 import Reset_password from "./pages/Reset_password";
 import SignUpPage from "./pages/SignUpPage";
@@ -22,6 +28,7 @@ function App() {
         <Route path="/v1/auth/reset-password" element={<Reset_password />} />
         <Route path="/v1/auth/register" element={<SignUpPage />} />
         <Route path="/v1/gym-center" element={<Gym_center />} />
+        <Route path="/v1/member/profile" element={<Profile />} />
       </Routes>
     </BrowserRouter>
   );

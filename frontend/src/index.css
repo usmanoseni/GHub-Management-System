@@ -22,3 +22,25 @@ body {
 #root {
   min-height: 100vh;
 }
+
+@keyframes anime-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(2rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.anime-slide-in {
+  animation: anime-slide-in 600ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anime-slide-in {
+    animation: none;
+  }
+}
