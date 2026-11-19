@@ -29,6 +29,8 @@ function App() {
         <Route path="/v1/auth/register" element={<SignUpPage />} />
         <Route path="/v1/gym-center" element={<Gym_center />} />
         <Route path="/v1/member/profile" element={<Profile />} />
+        <Route path="/v1/member/nutrient-tips" element={<NutrientionTip />} />
+        <Route path="/v1/member/notification" element={<Notification />} />
       </Routes>
     </BrowserRouter>
   );

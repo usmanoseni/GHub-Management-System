@@ -1,5 +1,9 @@
 const bcryptjs = require("bcryptjs");
-const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} = require("@aws-sdk/client-s3");
 const crypto = require("node:crypto");
 const Members = require("../models/Member");
 const GymBranch = require("../models/gymbranch");
@@ -112,6 +116,38 @@ exports.updateMemberProfileImg = async (req, res, next) => {
     if (error.statusCode === 400) {
       return res.status(400).json({ message: error.message });
     }
+    return next(error);
+  }
+};
+
+exports.getMemberProfileImg = async (req, res, next) => {
+  try {
+    const member = await Members.findById(req.user.id).select("profile");
+    if (!member) {
+      return res.status(404).json({ message: "Member not found" });
+    }
+    if (!member.profile) {
+      return res.status(404).json({ message: "Profile image not found" });
+    }
+    if (!process.env.AWS_S3_BUCKET) {
+      throw new Error("AWS_S3_BUCKET is not configured");
+    }
+
+    const image = await s3.send(
+      new GetObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: member.profile,
+      }),
+    );
+    if (!image.Body) {
+      return res.status(404).json({ message: "Profile image not found" });
+    }
+
+    const imageBuffer = Buffer.from(await image.Body.transformToByteArray());
+    res.set("Content-Type", image.ContentType || "application/octet-stream");
+    res.set("Cache-Control", "private, max-age=300");
+    return res.status(200).send(imageBuffer);
+  } catch (error) {
     return next(error);
   }
 };
@@ -280,7 +316,24 @@ exports.getMemberProfile = async (req, res, next) => {
     if (!member) {
       return res.status(404).json({ message: "Member not found" });
     }
-    return res.status(200).json({ member: sanitizeMember(member) });
+    const { gym, branch } = await resolveGymBranch(
+      member.gym_id,
+      member.branchcode,
+    );
+    return res.status(200).json({
+      member: sanitizeMember(member),
+      gym: gym ? { gymName: gym.gymName } : null,
+      branch: branch
+        ? {
+            branchName: branch.branchName,
+            address: {
+              city: branch.address.city,
+              state: branch.address.state,
+              country: branch.address.country,
+            },
+          }
+        : null,
+    });
   } catch (error) {
     return next(error);
   }

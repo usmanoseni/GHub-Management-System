@@ -130,7 +130,7 @@ const Sidebar = ({ isOpen, isCollapsed, onToggleCollapsed, onClose }: SidebarPro
             onMouseEnter={() => setIsHovered(true)}
             className={`flex items-center ${isExpanded ? 'justify-start' : 'justify-center'}`}
           >
-            <Link title={!isExpanded ? "Dashboard" : undefined} to={`/v1/member/dashboard`} className={`flex items-center gap-2 py-2.5 px-1.5 w-full rounded-lg hover:bg-green-50 transition-colors ${isExpanded ? 'justify-start' : 'justify-center'}`}>
+            <Link title={!isExpanded ? "Dashboard" : undefined} to={`/v1/member/nutrient-tips`} className={`flex items-center gap-2 py-2.5 px-1.5 w-full rounded-lg hover:bg-green-50 transition-colors ${isExpanded ? 'justify-start' : 'justify-center'}`}>
               <span className="text-gray-950 ">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" className="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />

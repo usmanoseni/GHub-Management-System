@@ -13,6 +13,13 @@ import gym_anime3 from "./Workout-pana.png"
 import gym_anime4 from "./Fitness tracker-pana.png"
 import qrcode from "./qr_code.jpg"
 import hurray from "./hurray.png"
+import fruit1 from "./fruit salad-amico.png"
+import fruit2 from "./fruit salad-rafiki.png"
+import fruit3 from "./fruit salad-bro.png"
+import water from "./water.jpg"
+import vegetable  from "./vegetable.jpg"
+import protein from "./protein.jpg"
+import crabs from "./crabs.jpg" 
 
 
 const Logo = {
@@ -26,11 +33,24 @@ const icons = {
     hurray
 }
 
+const nutrition = {
+    water,
+    protein,
+    vegetable,
+    crabs
+}
+
 const anime = [
     gym_anime1,
     gym_anime2,
     gym_anime3,
     gym_anime4
+]
+
+const fruitSalad = [
+    fruit1,
+    fruit2,
+    fruit3
 ]
 
 const gymImg = [
@@ -43,4 +63,4 @@ const gymImg = [
 ]
 
 
-export { Logo, icons, gymImg, anime };
+export { Logo, icons, gymImg, anime, fruitSalad,  nutrition  };

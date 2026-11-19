@@ -6,6 +6,7 @@ const {
   createMember,
   getMemberProfile,
   updateMemberProfile,
+  getMemberProfileImg,
   updateMemberProfileImg,
   validateMemberPassword,
   changeMemberPassword,
@@ -38,6 +39,7 @@ router.use(async (req, res, next) => {
 });
 router.get("/me", getMemberProfile);
 router.patch("/me", updateMemberProfile);
+router.get("/me/profile-image", getMemberProfileImg);
 router.post(
   "/me/profile-image",
   upload.single("image"),

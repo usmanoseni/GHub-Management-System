@@ -138,15 +138,15 @@ const LoginPage: React.FC = () => {
           if(selectedRole === "owner") {
             const destination =
               response.onboardingStatus === "completed"
-                ? "/owner/dashboard"
+                ? "/v1/owner/dashboard"
                 : "/v1/gym-center";
             setTimeout(() => navigate(destination, { replace: true }), 1200);
           }else if(selectedRole === "staff") {
-            setTimeout(() => navigate("/gym-employees/dashboard", { replace: true }), 1200);
+            setTimeout(() => navigate("/v1/gym-employees/dashboard", { replace: true }), 1200);
           }else if(selectedRole === "instructor") {
-            setTimeout(() => navigate("/instructor/dashboard", { replace: true }), 1200);
+            setTimeout(() => navigate("/v1/instructor/dashboard", { replace: true }), 1200);
           }else if(selectedRole === "member") {
-            setTimeout(() => navigate("/member/dashboard", { replace: true }), 1200);
+            setTimeout(() => navigate("/v1/member/dashboard", { replace: true }), 1200);
           }
       } else {
           const message = response.message || "Invalid email or password";

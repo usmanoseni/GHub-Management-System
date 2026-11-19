@@ -1,5 +1,13 @@
+import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Logo } from "../../../assets/asset"
 import { X } from "lucide-react"
+import { toast } from "sonner"
+import {
+  getMemberProfile,
+  getMemberProfileImage,
+  logoutMember,
+} from "../../../services/memberService"
 
 
 interface NavbarProps {
@@ -9,6 +17,19 @@ interface NavbarProps {
   onToggleSidebar: () => void
   searchQuery: string
   onSearchChange: (query: string) => void
+  memberName?: string
+  memberImage?: string | null
+  gymName?: string
+  branchName?: string
+  branchLocation?: string
+}
+
+interface NavbarMemberData {
+  memberName: string
+  memberImage: string | null
+  gymName: string
+  branchName: string
+  branchLocation: string
 }
 
 const Navbar = ({
@@ -18,7 +39,85 @@ const Navbar = ({
   onToggleSidebar,
   searchQuery,
   onSearchChange,
+  memberName: providedMemberName,
+  memberImage: providedMemberImage,
+  gymName: providedGymName,
+  branchName: providedBranchName,
+  branchLocation: providedBranchLocation,
 }: NavbarProps) => {
+  const navigate = useNavigate()
+  const [fetchedMemberData, setFetchedMemberData] = useState<NavbarMemberData | null>(null)
+  const memberName = providedMemberName ?? fetchedMemberData?.memberName ?? "Member"
+  const memberImage = providedMemberName !== undefined
+    ? providedMemberImage ?? null
+    : fetchedMemberData?.memberImage ?? null
+  const gymName = providedGymName ?? fetchedMemberData?.gymName ?? "Gym membership"
+  const branchName = providedBranchName ?? fetchedMemberData?.branchName ?? "Branch"
+  const branchLocation = providedBranchLocation ?? fetchedMemberData?.branchLocation ?? ""
+  const memberInitial = memberName.trim().charAt(0).toUpperCase() || "M"
+
+  useEffect(() => {
+    if (providedMemberName !== undefined) return
+
+    let isActive = true
+    let imageUrl: string | null = null
+
+    const loadMemberData = async () => {
+      try {
+        const response = await getMemberProfile()
+        if (!isActive) return
+
+        if (response.member.profile) {
+          try {
+            const image = await getMemberProfileImage()
+            const nextImageUrl = URL.createObjectURL(image)
+            if (!isActive) {
+              URL.revokeObjectURL(nextImageUrl)
+              return
+            }
+            imageUrl = nextImageUrl
+          } catch {
+            if (isActive) toast.error("Could not load the profile image in the navigation bar.")
+          }
+        }
+
+        if (isActive) {
+          setFetchedMemberData({
+            memberName: `${response.member.firstName} ${response.member.lastname}`.trim(),
+            memberImage: imageUrl,
+            gymName: response.gym?.gymName || response.member.gym_id,
+            branchName: response.branch?.branchName || response.member.branchcode,
+            branchLocation: response.branch
+              ? [response.branch.address.city, response.branch.address.state]
+                  .filter(Boolean)
+                  .join(", ")
+              : "",
+          })
+        }
+      } catch {
+        if (isActive) {
+          toast.error("Could not load member information for the navigation bar.")
+        }
+      }
+    }
+
+    void loadMemberData()
+    return () => {
+      isActive = false
+      if (imageUrl) URL.revokeObjectURL(imageUrl)
+    }
+  }, [providedMemberName])
+
+  const handleLogout = async () => {
+    try {
+      await logoutMember()
+    } catch {
+      toast.error("The server could not be notified, but you have been signed out on this device.")
+    } finally {
+      localStorage.removeItem("ghub_token")
+      navigate("/v1/auth/login", { replace: true })
+    }
+  }
   
   return (
     <nav className={`fixed top-0 z-10 h-15 w-full overflow-hidden  shadow-sm shadow-gray-200 md:w-[90%] ${
@@ -45,16 +144,16 @@ const Navbar = ({
                 <img src={Logo.ghub2} alt="" className='size-9' />
             </div>
             <div className="flex flex-col justify-start ">
-              <div className="font-bold font-montserrat text-sm">HusGym</div>
+              <div className="font-bold font-montserrat text-sm line-clamp-1">{gymName}</div>
               <div className="flex justify-start items-center gap-1">
-                <span className="size-1 rounded-full bg-red-500 content-['']"></span>
-                <span className="text-xs ">Ajuwon, Lagos</span>
+                <span className="size-1 rounded-full bg-green-500 content-['']"></span>
+                <span className="text-xs">{branchLocation ? ` ${branchLocation}` : ""}</span>
               </div>
             </div>
           </div>
         </div>
         
-        <div className="hidden w-2/5 md:flex items-center border border-gray-400 rounded-md py-2 ">
+        <div className="hidden w-2/5 md:flex items-center border border-gray-400 rounded-md py-2 mr-2">
           <span className="px-1 text-gray-700">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" className="size-5">
               <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -113,13 +212,23 @@ const Navbar = ({
                     </svg>
               </button>
             <div className='hidden md:flex justify-center items-center gap-1.5'>
-            <div className='bg-green-50 size-10 font-medium text-green-600 rounded-full flex justify-center items-center'>J</div>
+            {memberImage ? (
+              <img src={memberImage} alt="" className="size-10 rounded-full object-cover" />
+            ) : (
+              <div className='bg-green-50 size-10 font-medium text-green-600 rounded-full flex justify-center items-center'>
+                {memberInitial}
+              </div>
+            )}
             <div className='text-xs flex flex-col justify-center items-start gap-0.5'>
                 <span className='text-gray-500 text-[10px]'>Member</span>
-                <span className='font-medium'>John Doe</span>
+                <span className='font-medium line-clamp-1'>{memberName}</span>
             </div>
               </div>
-              <div className='hidden md:flex justify-center items-center gap-1 text-xs font-medium cursor-pointer rounded-md bg-red-50 text-red-600 py-2 px-4 hover:text-red-700 transition-all ease-in-out duration-300  '>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className='hidden md:flex justify-center items-center gap-1 text-xs font-medium cursor-pointer rounded-md bg-red-50 text-red-600 py-2 px-4 hover:text-red-700 transition-all ease-in-out duration-300'
+              >
                   <span>
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" className="size-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
@@ -127,7 +236,7 @@ const Navbar = ({
                   </span>
                   Logout
                   
-            </div>
+              </button>
         </div>
 
          </div> 

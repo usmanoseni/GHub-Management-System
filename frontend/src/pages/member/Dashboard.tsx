@@ -2,16 +2,25 @@ import { useEffect, useState } from 'react'
 import NavBar from "./Component/Navbar"
 import Sidebar from './Component/Sidebar'
 import QRScanner from "./Component/QRScanner"
+import FitnessTips from "./Component/FitnessTips"
 import { anime } from "../../assets/asset"
 import { icons } from "../../assets/asset"
 import { gymImg } from '../../assets/asset'
 import SubscriptionStatus from './Component/Suscription'
-import { X , Activity, CalendarCheck, Clock, ChevronRight, Bubbles } from 'lucide-react'
-
+import { X , Activity, CalendarCheck, Clock, ChevronRight } from 'lucide-react'
+import { toast } from 'sonner'
+import {
+  getMemberProfile,
+  getMemberProfileImage,
+  type MemberProfileResponse,
+} from '../../services/memberService'
 
 
 const Dashboard = () => {
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [memberProfile, setMemberProfile] = useState<MemberProfileResponse | null>(null)
+  const [memberImage, setMemberImage] = useState<string | null>(null)
+  const [isMemberLoading, setIsMemberLoading] = useState(true)
   const [searchbarDropDown, setSearchbarDropDown] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -23,6 +32,49 @@ const Dashboard = () => {
   const filteredActivities = activities.filter((activity) =>
     activity.toLowerCase().includes(searchQuery.trim().toLowerCase())
   )
+  const memberName = memberProfile
+    ? `${memberProfile.member.firstName} ${memberProfile.member.lastname}`.trim()
+    : isMemberLoading
+      ? 'Loading...'
+      : 'Member'
+
+  useEffect(() => {
+    let isActive = true
+    let imageUrl: string | null = null
+
+    const loadMemberProfile = async () => {
+      try {
+        const response = await getMemberProfile()
+        if (!isActive) return
+        setMemberProfile(response)
+
+        if (response.member.profile) {
+          try {
+            const image = await getMemberProfileImage()
+            const nextImageUrl = URL.createObjectURL(image)
+            if (!isActive) {
+              URL.revokeObjectURL(nextImageUrl)
+              return
+            }
+            imageUrl = nextImageUrl
+            setMemberImage(nextImageUrl)
+          } catch {
+            if (isActive) toast.error('Could not load your profile image.')
+          }
+        }
+      } catch {
+        if (isActive) toast.error('Could not load your member profile.')
+      } finally {
+        if (isActive) setIsMemberLoading(false)
+      }
+    }
+
+    void loadMemberProfile()
+    return () => {
+      isActive = false
+      if (imageUrl) URL.revokeObjectURL(imageUrl)
+    }
+  }, [])
 
     useEffect(() => {
     const interval = setInterval(() => {
@@ -53,6 +105,17 @@ const Dashboard = () => {
         onQRScan={() => setShowQRScanner(true)}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        memberName={memberName}
+        memberImage={memberImage}
+        gymName={memberProfile?.gym?.gymName || memberProfile?.member.gym_id || 'Gym membership'}
+        branchName={memberProfile?.branch?.branchName || memberProfile?.member.branchcode || 'Branch'}
+        branchLocation={
+          memberProfile?.branch
+            ? [memberProfile.branch.address.city, memberProfile.branch.address.state]
+                .filter(Boolean)
+                .join(', ')
+            : ''
+        }
           />
           <Sidebar
             isOpen={sidebarOpen}
@@ -165,7 +228,7 @@ const Dashboard = () => {
               <span className='font-montserrat font-semibold text-xl'>Welcome Back</span>
               <img src={icons.hurray} alt="" className='size-7 ' />
             </div>
-            <div className='text-2xl font-bold font-montserrat'>John Doe</div>
+            <div className='text-2xl font-bold font-montserrat'>{memberName}</div>
             <p className="w-[70%]">Keep pushing your Limit. A healther stronger you is just a workout away</p>
             
             <div className='mt-3'>
@@ -365,40 +428,11 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className='bg-white p-4 w-full shadow-sm rounded-xl border border-gray-100 flex flex-col gap-4'>
-               {/* Header */}
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Bubbles size={20} className="text-[#10b981]" />
-                  <h2 className="font-semibold text-[#082b3c]">
-                    Fitness Tips
-                  </h2>
-                </div>
-
-                <button className="text-xs text-[#10b981] hover:underline">
-                  View all
-                </button>
-              </div>
-
-              <div className='h-full flex flex-col justify-start items-center ]'>
-                <div className=' p-2 flex gap-2 justify-start items-center'>
-                  <div className='h-22 w-40 overflow-hidden rounded-lg'><img src={gymImg[0]} alt="" className='' /></div>
-                  <div className='flex flex-1 flex-col w-full space-y-1'>
-                      <span className='text-sm font-montserrat font-semibold'>Stay Consistent!</span>
-                    <div className='text-xs text-gray-700 line-clamp-2 leading-4'>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Neque dolor debitisfugiat, dignissimos recusandae minus doloremque voluptatibus.</div>
-                    <div className='bg-green-500 h-[3px] mt-1 w-16 rounded-2xl'></div>
-                  </div>
-                </div>
-                <div className=' p-2 flex gap-2 justify-start items-center'>
-                  <div className='h-22 w-40 overflow-hidden rounded-lg'><img src={gymImg[5]} alt="" className='' /></div>
-                  <div className='flex flex-1 flex-col w-full space-y-1'>
-                      <span className='text-sm font-montserrat font-semibold'>Stay Consistent!</span>
-                    <div className='text-xs text-gray-700 line-clamp-2 leading-4'>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Neque dolor debitisfugiat, dignissimos recusandae minus doloremque voluptatibus.</div>
-                    <div className='bg-amber-500 h-[3px] mt-1 w-16 rounded-2xl'></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <FitnessTips
+              maxTips={2}
+              singleColumn
+              viewAllTo="/v1/member/nutrient-tips"
+            />
           </div>
         </div>
       </section>
